@@ -29,17 +29,17 @@ class AuthRepository @Inject constructor(
 ) {
     val isLoggedIn: Flow<Boolean> = tokenManager.isLoggedIn
 
-    suspend fun login(phone: String, pin: String, tenantId: String): AuthResult {
+    suspend fun login(phone: String, pin: String): AuthResult {
         return if (connectivityObserver.isOnline()) {
-            loginOnline(phone, pin, tenantId)
+            loginOnline(phone, pin)
         } else {
             loginOffline(phone, pin)
         }
     }
 
-    private suspend fun loginOnline(phone: String, pin: String, tenantId: String): AuthResult {
+    private suspend fun loginOnline(phone: String, pin: String): AuthResult {
         return try {
-            val response = authApi.loginWithPhone(PhoneLoginRequest(phone, pin, tenantId))
+            val response = authApi.loginWithPhone(PhoneLoginRequest(phone, pin))
             if (response.isSuccessful) {
                 val body = response.body() ?: return AuthResult.Error("Empty response")
                 val user = body.user

@@ -34,7 +34,11 @@ Debug APK output:
 
 - Mobile submit sync target is configured at:
   - `app/build.gradle.kts` -> `BuildConfig.OPS_API_BASE_URL`
-  - Default: `http://10.0.2.2:8080/api/v1/` (Android emulator to host machine)
+  - Current: `https://gudgumerp.vercel.app/api/v1/`
+- Shared Supabase project metadata is configured at:
+  - `BuildConfig.SUPABASE_API_URL`
+  - `BuildConfig.SUPABASE_PROJECT_REF`
+  - `BuildConfig.SUPABASE_PUBLISHABLE_KEY`
 - Required backend endpoints:
   - `POST /api/v1/ops/events`
   - `GET /api/v1/ops/events`

@@ -7,7 +7,7 @@ import javax.inject.Inject
 class LoginUseCase @Inject constructor(
     private val authRepository: AuthRepository
 ) {
-    suspend operator fun invoke(phone: String, pin: String, tenantId: String): AuthResult {
+    suspend operator fun invoke(phone: String, pin: String): AuthResult {
         // Validate phone format (Indian mobile: 10 digits starting with 6-9)
         if (!phone.matches(Regex("^[6-9]\\d{9}$"))) {
             return AuthResult.Error("Invalid phone number. Must be 10 digits starting with 6-9.")
@@ -21,7 +21,7 @@ class LoginUseCase @Inject constructor(
             return AuthResult.Error("PIN cannot be sequential (1234) or repeated (1111).")
         }
 
-        return authRepository.login(phone, pin, tenantId)
+        return authRepository.login(phone, pin)
     }
 
     private fun isSequentialPattern(pin: String): Boolean {

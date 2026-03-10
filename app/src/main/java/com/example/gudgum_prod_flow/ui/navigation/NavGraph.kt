@@ -23,7 +23,7 @@ fun UtpadNavGraph(navController: NavHostController) {
     val allowedRoutes = workerSession?.authorizedRoutes ?: emptySet()
 
     fun navigateToAuthorizedRoute(route: String) {
-        if (authViewModel.isAuthorizedFor(route)) {
+        if (route in allowedRoutes) {
             navController.navigate(route) { launchSingleTop = true }
         }
     }
@@ -54,7 +54,6 @@ fun UtpadNavGraph(navController: NavHostController) {
                         launchSingleTop = true
                     }
                 },
-                onForgotPin = { navController.navigate(AppRoute.PinReset) },
                 authViewModel = authViewModel,
             )
         }

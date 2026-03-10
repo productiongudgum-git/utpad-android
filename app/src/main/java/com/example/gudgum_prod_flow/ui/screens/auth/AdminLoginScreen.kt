@@ -64,22 +64,12 @@ fun AdminLoginScreen(
         ) {
             Spacer(Modifier.height(64.dp))
 
-            // Logo placeholder
-            Box(
-                modifier = Modifier
-                    .size(width = 160.dp, height = 48.dp)
-                    .background(
-                        MaterialTheme.colorScheme.primaryContainer,
-                        RoundedCornerShape(8.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "UTPAD",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onPrimary
-                )
-            }
+            // GudGum Logo
+            androidx.compose.foundation.Image(
+                painter = androidx.compose.ui.res.painterResource(id = com.example.gudgum_prod_flow.R.drawable.gudgum_logo),
+                contentDescription = "GudGum Logo",
+                modifier = Modifier.height(48.dp)
+            )
 
             Spacer(Modifier.height(32.dp))
 

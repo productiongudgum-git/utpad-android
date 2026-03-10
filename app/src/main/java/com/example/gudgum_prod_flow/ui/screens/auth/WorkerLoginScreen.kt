@@ -25,6 +25,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -57,10 +60,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -108,7 +116,12 @@ fun WorkerLoginScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    Text("Utpad", color = UtpadPrimary, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    // Use the drawable directly for the logo
+                    androidx.compose.foundation.Image(
+                        painter = androidx.compose.ui.res.painterResource(id = com.example.gudgum_prod_flow.R.drawable.gudgum_logo),
+                        contentDescription = "GudGum Logo",
+                        modifier = Modifier.height(48.dp)
+                    )
                 },
                 navigationIcon = {
                     if (currentStep == 2) {
@@ -131,11 +144,8 @@ fun WorkerLoginScreen(
                 1 -> PhoneInputStep(
                     modifier = Modifier.padding(padding),
                     phone = phone,
-                    onPhoneChanged = { digit -> 
-                        if (phone.length < 10) authViewModel.onPhoneChanged(phone + digit)
-                    },
-                    onBackspace = {
-                        if (phone.isNotEmpty()) authViewModel.onPhoneChanged(phone.dropLast(1))
+                    onPhoneChanged = { newPhone -> 
+                        authViewModel.onPhoneChanged(newPhone)
                     },
                     onNextStep = { currentStep = 2 }
                 )
@@ -143,16 +153,12 @@ fun WorkerLoginScreen(
                     modifier = Modifier.padding(padding),
                     phone = phone,
                     pin = pin,
-                    onPinDigit = { digit ->
-                        if (pin.length < 6) authViewModel.onPinDigit(digit)
-                    },
-                    onPinBackspace = authViewModel::onPinBackspace,
+                    onPinChanged = authViewModel::onPinChanged,
                     onSubmit = authViewModel::submitLogin,
                     isLoading = loginState is LoginState.Loading,
                     isError = loginState is LoginState.Error,
                     isSuccess = loginState is LoginState.Success,
-                    errorMessage = (loginState as? LoginState.Error)?.message,
-                    onForgotPin = onForgotPin
+                    errorMessage = (loginState as? LoginState.Error)?.message
                 )
             }
         }
@@ -164,95 +170,83 @@ fun PhoneInputStep(
     modifier: Modifier = Modifier,
     phone: String,
     onPhoneChanged: (String) -> Unit,
-    onBackspace: () -> Unit,
     onNextStep: () -> Unit
 ) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 24.dp)
-            .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Spacer(Modifier.height(16.dp))
-        
         Text(
             text = "Enter your phone\nnumber",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = UtpadTextPrimary,
+            textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
-        Spacer(Modifier.height(12.dp))
+
+        Spacer(Modifier.height(28.dp))
+
         Text(
-            text = "We'll send a 6-digit verification code to your phone to get you started.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = Color.Gray,
-            modifier = Modifier.fillMaxWidth(),
-            lineHeight = 22.sp
-        )
-        
-        Spacer(Modifier.height(32.dp))
-        
-        Text(
-            text = "Phone Number", 
-            style = MaterialTheme.typography.labelMedium, 
-            color = Color.DarkGray, 
+            text = "Phone Number",
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.DarkGray,
             modifier = Modifier.fillMaxWidth(),
             fontWeight = FontWeight.SemiBold
         )
         Spacer(Modifier.height(8.dp))
-        
-        // Input Box
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp)
-                .background(Color(0xFFF8FAFC), RoundedCornerShape(16.dp))
-                .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(16.dp))
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("🇮🇳", fontSize = 20.sp)
-            Spacer(Modifier.width(8.dp))
-            Text("+91", fontWeight = FontWeight.SemiBold, color = UtpadTextPrimary, fontSize = 16.sp)
-            Spacer(Modifier.width(12.dp))
-            Box(modifier = Modifier.width(1.dp).height(24.dp).background(Color(0xFFCBD5E1)))
-            Spacer(Modifier.width(16.dp))
-            
-            val displayPhone = buildString {
-                for (i in 0 until 10) {
-                    if (i < phone.length) append(phone[i]) else append("0")
-                    if (i == 2 || i == 5) append(" ")
+
+        androidx.compose.material3.OutlinedTextField(
+            value = phone,
+            onValueChange = { newValue ->
+                val digitsOnly = newValue.filter { it.isDigit() }
+                if (digitsOnly.length <= 10) {
+                    onPhoneChanged(digitsOnly)
                 }
-            }
-            Text(
-                text = displayPhone,
-                color = if (phone.isEmpty()) Color.LightGray else UtpadTextPrimary,
+            },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword,
+                imeAction = androidx.compose.ui.text.input.ImeAction.Done
+            ),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                onDone = {
+                    if (phone.length == 10) onNextStep()
+                }
+            ),
+            singleLine = true,
+            leadingIcon = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(start = 16.dp, end = 8.dp)
+                ) {
+                    Text("🇮🇳", fontSize = 20.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Text("+91", fontWeight = FontWeight.SemiBold, color = UtpadTextPrimary, fontSize = 16.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Box(modifier = Modifier.width(1.dp).height(24.dp).background(Color(0xFFCBD5E1)))
+                }
+            },
+            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color(0xFFF8FAFC),
+                unfocusedContainerColor = Color(0xFFF8FAFC),
+                focusedBorderColor = UtpadPrimary,
+                unfocusedBorderColor = Color(0xFFE2E8F0),
+            ),
+            shape = RoundedCornerShape(16.dp),
+            textStyle = androidx.compose.ui.text.TextStyle(
                 fontSize = 18.sp,
                 letterSpacing = 1.sp,
-                fontWeight = if (phone.isEmpty()) FontWeight.Normal else FontWeight.Medium
+                color = UtpadTextPrimary,
+                fontWeight = FontWeight.Medium
             )
-        }
-        
-        Spacer(Modifier.height(32.dp))
-        
-        // Keypad Container
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFFF8FAFC), RoundedCornerShape(24.dp))
-                .padding(16.dp)
-        ) {
-            NumericKeypad(
-                onDigit = { onPhoneChanged(it.toString()) },
-                onBackspace = onBackspace,
-                bottomLeftIcon = { Spacer(Modifier.size(24.dp)) }
-            )
-        }
-        
-        Spacer(Modifier.height(32.dp))
-        
+        )
+
+        Spacer(Modifier.height(28.dp))
+
         Button(
             onClick = onNextStep,
             enabled = phone.length == 10,
@@ -267,9 +261,9 @@ fun PhoneInputStep(
             Spacer(Modifier.width(8.dp))
             Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp))
         }
-        
+
         Spacer(Modifier.height(16.dp))
-        
+
         Text(
             text = "By continuing, you agree to our Terms of Service and Privacy Policy. Data rates may apply.",
             style = MaterialTheme.typography.bodySmall,
@@ -277,8 +271,6 @@ fun PhoneInputStep(
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 16.dp)
         )
-        
-        Spacer(Modifier.height(24.dp))
     }
 }
 
@@ -287,24 +279,20 @@ fun PinInputStep(
     modifier: Modifier = Modifier,
     phone: String,
     pin: String,
-    onPinDigit: (Int) -> Unit,
-    onPinBackspace: () -> Unit,
+    onPinChanged: (String) -> Unit,
     onSubmit: () -> Unit,
     isLoading: Boolean,
     isError: Boolean,
     isSuccess: Boolean,
-    errorMessage: String?,
-    onForgotPin: () -> Unit
+    errorMessage: String?
 ) {
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = 24.dp)
-            .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Spacer(Modifier.height(16.dp))
-        
         Text(
             text = "Enter your 6-digit\nPIN",
             style = MaterialTheme.typography.headlineMedium,
@@ -314,7 +302,7 @@ fun PinInputStep(
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(12.dp))
-        
+
         val displayPhone = buildString {
             append("Sent to +91 ")
             for (i in 0 until phone.length) {
@@ -330,16 +318,18 @@ fun PinInputStep(
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
-        
-        Spacer(Modifier.height(40.dp))
-        
-        PinDotsRow(
-            enteredCount = pin.length,
+
+        Spacer(Modifier.height(32.dp))
+
+        PinCodeInput(
+            pin = pin,
+            onPinChanged = onPinChanged,
             totalCount = 6,
             isError = isError,
-            isSuccess = isSuccess
+            isSuccess = isSuccess,
+            enabled = !isLoading,
         )
-        
+
         if (isError && errorMessage != null) {
             Spacer(Modifier.height(16.dp))
             Text(
@@ -350,34 +340,11 @@ fun PinInputStep(
                 modifier = Modifier.fillMaxWidth()
             )
         }
-        
-        Spacer(Modifier.height(32.dp))
-        
-        // Keypad Container
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color(0xFFF8FAFC), RoundedCornerShape(24.dp))
-                .padding(16.dp)
-        ) {
-            NumericKeypad(
-                onDigit = onPinDigit,
-                onBackspace = onPinBackspace,
-                bottomLeftIcon = {
-                    Icon(Icons.Filled.Lock, contentDescription = null, tint = Color.LightGray)
-                },
-                enabled = !isLoading
-            )
-        }
-        
-        Spacer(Modifier.height(24.dp))
-        
-        TextButton(onClick = onForgotPin) {
-            Text("Forgot PIN?", color = UtpadPrimary, fontWeight = FontWeight.Medium)
-        }
-        
-        Spacer(Modifier.height(16.dp))
-        
+
+
+
+        Spacer(Modifier.height(12.dp))
+
         Button(
             onClick = onSubmit,
             enabled = pin.length == 6 && !isLoading,
@@ -394,8 +361,6 @@ fun PinInputStep(
                 Text("Verify and Login", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
         }
-        
-        Spacer(Modifier.height(24.dp))
     }
 }
 
@@ -491,6 +456,97 @@ fun RowScope.KeypadButton(
 }
 
 @Composable
+fun PinCodeInput(
+    pin: String,
+    onPinChanged: (String) -> Unit,
+    totalCount: Int,
+    isError: Boolean,
+    isSuccess: Boolean,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val interactionSource = remember { MutableInteractionSource() }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+        keyboardController?.show()
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics { contentDescription = "${pin.length} of $totalCount digits entered" },
+        contentAlignment = Alignment.Center,
+    ) {
+        BasicTextField(
+            value = pin,
+            onValueChange = { value ->
+                if (value.all(Char::isDigit) && value.length <= totalCount) {
+                    onPinChanged(value)
+                }
+            },
+            enabled = enabled,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.NumberPassword,
+                imeAction = ImeAction.Done,
+            ),
+            keyboardActions = KeyboardActions(onDone = { keyboardController?.hide() }),
+            modifier = Modifier
+                .focusRequester(focusRequester)
+                .size(1.dp),
+        )
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(
+                    enabled = enabled,
+                    interactionSource = interactionSource,
+                    indication = null,
+                ) {
+                    focusRequester.requestFocus()
+                    keyboardController?.show()
+                },
+        ) {
+            repeat(totalCount) { index ->
+                val value = pin.getOrNull(index)?.toString() ?: ""
+                val borderColor by animateColorAsState(
+                    targetValue = when {
+                        isError -> UtpadError
+                        isSuccess -> UtpadSuccess
+                        index < pin.length -> UtpadPrimary
+                        else -> UtpadOutline
+                    },
+                    animationSpec = tween(150, easing = FastOutSlowInEasing),
+                    label = "pinBorderColor",
+                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(56.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(Color(0xFFF8FAFC))
+                        .border(2.dp, borderColor, RoundedCornerShape(14.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = value,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = UtpadTextPrimary,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun PinDotsRow(
     enteredCount: Int,
     totalCount: Int,
@@ -512,7 +568,7 @@ fun PinDotsRow(
                     isError -> UtpadError
                     isSuccess -> UtpadSuccess
                     isFilled -> UtpadPrimary
-                    else -> UtpadOutline // Filled light gray circle
+                    else -> UtpadOutline
                 },
                 animationSpec = tween(150, easing = FastOutSlowInEasing),
                 label = "dotColor",
@@ -527,7 +583,7 @@ fun PinDotsRow(
                     .size(16.dp)
                     .scale(scale)
                     .clip(CircleShape)
-                    .background(dotColor)
+                    .background(dotColor),
             )
         }
     }

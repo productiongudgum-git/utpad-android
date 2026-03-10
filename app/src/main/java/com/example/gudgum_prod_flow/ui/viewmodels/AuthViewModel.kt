@@ -36,36 +36,11 @@ sealed class LoginState {
 }
 
 @HiltViewModel
-class AuthViewModel @Inject constructor() : ViewModel() {
+class AuthViewModel @Inject constructor(
+    private val loginUseCase: com.example.gudgum_prod_flow.domain.usecase.LoginUseCase
+) : ViewModel() {
 
-    companion object {
-        val DemoCredentials = listOf(
-            DemoWorkerCredential(
-                label = "Inwarding Staff",
-                phone = "9876543210",
-                pin = "123456",
-                role = "Inwarding",
-            ),
-            DemoWorkerCredential(
-                label = "Production Operator",
-                phone = "9876543211",
-                pin = "223344",
-                role = "Production",
-            ),
-            DemoWorkerCredential(
-                label = "Packing Staff",
-                phone = "9876543212",
-                pin = "112233",
-                role = "Packing",
-            ),
-            DemoWorkerCredential(
-                label = "Dispatch Staff",
-                phone = "9876543213",
-                pin = "654321",
-                role = "Dispatch",
-            ),
-        )
-    }
+    // Removed DemoCredentials logic since we now use real authentication via Vercel/Supabase
 
     private val _phone = MutableStateFlow("")
     val phone: StateFlow<String> = _phone.asStateFlow()
@@ -90,10 +65,7 @@ class AuthViewModel @Inject constructor() : ViewModel() {
 
     fun onPinDigit(digit: Int) {
         if (_pin.value.length < 6) {
-            _pin.value += digit.toString()
-            if (_pin.value.length == 6) {
-                performLogin()
-            }
+            onPinChanged(_pin.value + digit.toString())
         }
     }
 
@@ -103,14 +75,17 @@ class AuthViewModel @Inject constructor() : ViewModel() {
         }
     }
 
-    fun onRememberDeviceChanged(rememberDevice: Boolean) {
-        _rememberDevice.value = rememberDevice
+    fun onPinChanged(value: String) {
+        if (value.all { it.isDigit() } && value.length <= 6) {
+            _pin.value = value
+            if (_loginState.value is LoginState.Error) {
+                _loginState.value = LoginState.Idle
+            }
+        }
     }
 
-    fun useDemoCredential(credential: DemoWorkerCredential) {
-        _phone.value = credential.phone
-        _pin.value = credential.pin
-        _loginState.value = LoginState.Idle
+    fun onRememberDeviceChanged(rememberDevice: Boolean) {
+        _rememberDevice.value = rememberDevice
     }
 
     fun submitLogin() {
@@ -123,14 +98,6 @@ class AuthViewModel @Inject constructor() : ViewModel() {
         }
     }
 
-    fun isAuthorizedFor(route: String): Boolean {
-        return _workerSession.value?.authorizedRoutes?.contains(route) == true
-    }
-
-    fun authorizedRoutes(): Set<String> {
-        return _workerSession.value?.authorizedRoutes ?: emptySet()
-    }
-
     fun authorizedHomeRoute(): String {
         return _workerSession.value?.homeRoute ?: AppRoute.WorkerLogin
     }
@@ -138,45 +105,42 @@ class AuthViewModel @Inject constructor() : ViewModel() {
     private fun performLogin() {
         viewModelScope.launch {
             _loginState.value = LoginState.Loading
-            delay(400L)
 
-            val matchedUser = DemoCredentials.firstOrNull {
-                it.phone == _phone.value && it.pin == _pin.value
-            }
+            when (val result = loginUseCase(_phone.value, _pin.value)) {
+                is com.example.gudgum_prod_flow.domain.model.AuthResult.Success -> {
+                    val user = result.user
+                    val allowedRoutes = routesForRole(user.role)
+                    val homeRoute = allowedRoutes.firstOrNull()
 
-            if (matchedUser != null) {
-                val allowedRoutes = routesForRole(matchedUser.role)
-                val homeRoute = allowedRoutes.firstOrNull()
+                    if (homeRoute == null) {
+                        _loginState.value = LoginState.Error(
+                            "This user role is not assigned to a mobile module.",
+                        )
+                        _pin.value = ""
+                        return@launch
+                    }
 
-                if (homeRoute == null) {
-                    _loginState.value = LoginState.Error(
-                        "This user role is not assigned to a mobile module.",
+                    _workerSession.value = WorkerSession(
+                        workerLabel = user.name,
+                        phone = user.phone,
+                        role = user.role,
+                        authorizedRoutes = allowedRoutes,
+                        homeRoute = homeRoute,
                     )
-                    _pin.value = ""
-                    return@launch
+                    WorkerIdentityStore.setIdentity(
+                        phone = user.phone,
+                        label = user.name,
+                        role = user.role,
+                    )
+                    _loginState.value = LoginState.Success(
+                        workerLabel = user.name,
+                        authorizedRoute = homeRoute,
+                    )
                 }
-
-                _workerSession.value = WorkerSession(
-                    workerLabel = matchedUser.label,
-                    phone = matchedUser.phone,
-                    role = matchedUser.role,
-                    authorizedRoutes = allowedRoutes,
-                    homeRoute = homeRoute,
-                )
-                WorkerIdentityStore.setIdentity(
-                    phone = matchedUser.phone,
-                    label = matchedUser.label,
-                    role = matchedUser.role,
-                )
-                _loginState.value = LoginState.Success(
-                    workerLabel = matchedUser.label,
-                    authorizedRoute = homeRoute,
-                )
-            } else {
-                _loginState.value = LoginState.Error(
-                    "Invalid worker credentials. Use one of the test credentials shown below.",
-                )
-                _pin.value = ""
+                is com.example.gudgum_prod_flow.domain.model.AuthResult.Error -> {
+                    _loginState.value = LoginState.Error(result.message)
+                    _pin.value = ""
+                }
             }
         }
     }
