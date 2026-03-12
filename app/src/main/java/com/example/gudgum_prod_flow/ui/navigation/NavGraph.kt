@@ -12,6 +12,7 @@ import com.example.gudgum_prod_flow.ui.screens.auth.PinResetScreen
 import com.example.gudgum_prod_flow.ui.screens.auth.WorkerLoginScreen
 import com.example.gudgum_prod_flow.ui.screens.production.DispatchScreen
 import com.example.gudgum_prod_flow.ui.screens.production.InwardingScreen
+import com.example.gudgum_prod_flow.ui.screens.production.ModuleSelectorScreen
 import com.example.gudgum_prod_flow.ui.screens.production.PackingScreen
 import com.example.gudgum_prod_flow.ui.screens.production.ProductionScreen
 import com.example.gudgum_prod_flow.ui.viewmodels.AuthViewModel
@@ -25,12 +26,6 @@ fun UtpadNavGraph(navController: NavHostController) {
     fun navigateToAuthorizedRoute(route: String) {
         if (route in allowedRoutes) {
             navController.navigate(route) { launchSingleTop = true }
-        }
-    }
-
-    fun navigateBackToLogin() {
-        navController.navigate(AppRoute.WorkerLogin) {
-            launchSingleTop = true
         }
     }
 
@@ -49,7 +44,9 @@ fun UtpadNavGraph(navController: NavHostController) {
         composable(AppRoute.WorkerLogin) {
             WorkerLoginScreen(
                 onLoginSuccess = { authorizedRoute ->
-                    navController.navigate(authorizedRoute) {
+                    // If worker has multiple modules, go to module selector
+                    val destination = if (allowedRoutes.size > 1) AppRoute.ModuleSelector else authorizedRoute
+                    navController.navigate(destination) {
                         popUpTo(AppRoute.WorkerLogin) { inclusive = true }
                         launchSingleTop = true
                     }
@@ -62,83 +59,40 @@ fun UtpadNavGraph(navController: NavHostController) {
             PinResetScreen(onBackPressed = { navController.popBackStack() })
         }
 
-        composable(AppRoute.Inwarding) {
-            val canAccess = AppRoute.Inwarding in allowedRoutes
-            LaunchedEffect(workerSession, canAccess) {
+        composable(AppRoute.ModuleSelector) {
+            // Module selector: shown when worker has 2+ modules
+            LaunchedEffect(workerSession) {
                 if (workerSession == null) {
                     navController.navigate(AppRoute.WorkerLogin) { launchSingleTop = true }
-                } else if (!canAccess) {
-                    navController.navigate(authViewModel.authorizedHomeRoute()) { launchSingleTop = true }
                 }
             }
-
-            if (canAccess) {
-                InwardingScreen(
-                    allowedRoutes = allowedRoutes,
-                    onBack = ::navigateBackToLogin,
-                    onLogout = ::logoutAndNavigateToLogin,
-                    onNavigateToRoute = ::navigateToAuthorizedRoute,
-                )
-            }
+            // Inline composable — simple screen showing allowed module buttons
+            ModuleSelectorScreen(
+                allowedRoutes = allowedRoutes,
+                onModuleSelected = { route ->
+                    navController.navigate(route) { launchSingleTop = true }
+                },
+                onLogout = ::logoutAndNavigateToLogin,
+            )
         }
 
-        composable(AppRoute.Production) {
-            val canAccess = AppRoute.Production in allowedRoutes
-            LaunchedEffect(workerSession, canAccess) {
-                if (workerSession == null) {
-                    navController.navigate(AppRoute.WorkerLogin) { launchSingleTop = true }
-                } else if (!canAccess) {
-                    navController.navigate(authViewModel.authorizedHomeRoute()) { launchSingleTop = true }
+        // Module screens — all guard against missing session and unauthorized access
+        listOf<Pair<String, @Composable () -> Unit>>(
+            AppRoute.Inwarding to { InwardingScreen(allowedRoutes = allowedRoutes, onBack = { navController.navigate(AppRoute.ModuleSelector) { launchSingleTop = true } }, onLogout = ::logoutAndNavigateToLogin, onNavigateToRoute = ::navigateToAuthorizedRoute) },
+            AppRoute.Production to { ProductionScreen(allowedRoutes = allowedRoutes, onBack = { navController.navigate(AppRoute.ModuleSelector) { launchSingleTop = true } }, onLogout = ::logoutAndNavigateToLogin, onNavigateToRoute = ::navigateToAuthorizedRoute) },
+            AppRoute.Packing to { PackingScreen(allowedRoutes = allowedRoutes, onBack = { navController.navigate(AppRoute.ModuleSelector) { launchSingleTop = true } }, onLogout = ::logoutAndNavigateToLogin, onNavigateToRoute = ::navigateToAuthorizedRoute) },
+            AppRoute.Dispatch to { DispatchScreen(allowedRoutes = allowedRoutes, onBack = { navController.navigate(AppRoute.ModuleSelector) { launchSingleTop = true } }, onLogout = ::logoutAndNavigateToLogin, onNavigateToRoute = ::navigateToAuthorizedRoute) },
+        ).forEach { (route, screen) ->
+            composable(route) {
+                val canAccess = route in allowedRoutes
+                LaunchedEffect(workerSession, canAccess) {
+                    if (workerSession == null) {
+                        navController.navigate(AppRoute.WorkerLogin) { launchSingleTop = true }
+                    } else if (!canAccess) {
+                        navController.navigate(AppRoute.ModuleSelector) { launchSingleTop = true }
+                    }
                 }
-            }
-
-            if (canAccess) {
-                ProductionScreen(
-                    allowedRoutes = allowedRoutes,
-                    onBack = ::navigateBackToLogin,
-                    onLogout = ::logoutAndNavigateToLogin,
-                    onNavigateToRoute = ::navigateToAuthorizedRoute,
-                )
-            }
-        }
-
-        composable(AppRoute.Packing) {
-            val canAccess = AppRoute.Packing in allowedRoutes
-            LaunchedEffect(workerSession, canAccess) {
-                if (workerSession == null) {
-                    navController.navigate(AppRoute.WorkerLogin) { launchSingleTop = true }
-                } else if (!canAccess) {
-                    navController.navigate(authViewModel.authorizedHomeRoute()) { launchSingleTop = true }
-                }
-            }
-
-            if (canAccess) {
-                PackingScreen(
-                    allowedRoutes = allowedRoutes,
-                    onBack = ::navigateBackToLogin,
-                    onLogout = ::logoutAndNavigateToLogin,
-                    onNavigateToRoute = ::navigateToAuthorizedRoute,
-                )
-            }
-        }
-
-        composable(AppRoute.Dispatch) {
-            val canAccess = AppRoute.Dispatch in allowedRoutes
-            LaunchedEffect(workerSession, canAccess) {
-                if (workerSession == null) {
-                    navController.navigate(AppRoute.WorkerLogin) { launchSingleTop = true }
-                } else if (!canAccess) {
-                    navController.navigate(authViewModel.authorizedHomeRoute()) { launchSingleTop = true }
-                }
-            }
-
-            if (canAccess) {
-                DispatchScreen(
-                    allowedRoutes = allowedRoutes,
-                    onBack = ::navigateBackToLogin,
-                    onLogout = ::logoutAndNavigateToLogin,
-                    onNavigateToRoute = ::navigateToAuthorizedRoute,
-                )
+                if (canAccess) screen()
             }
         }
     }

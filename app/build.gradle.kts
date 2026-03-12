@@ -20,8 +20,10 @@ android {
         versionCode = 1
         versionName = "1.0"
         buildConfigField("String", "OPS_API_BASE_URL", "\"https://gudgumerp.vercel.app/api/v1/\"")
+        buildConfigField("String", "SUPABASE_URL", "\"https://zoemonbualktnxhpbebv.supabase.co/rest/v1/\"")
         buildConfigField("String", "SUPABASE_API_URL", "\"https://zoemonbualktnxhpbebv.supabase.co\"")
         buildConfigField("String", "SUPABASE_PROJECT_REF", "\"zoemonbualktnxhpbebv\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"sb_publishable_Zu2MWJXLGRLh66nmInx3dA_zqeE3nIY\"")
         buildConfigField("String", "SUPABASE_PUBLISHABLE_KEY", "\"sb_publishable_Zu2MWJXLGRLh66nmInx3dA_zqeE3nIY\"")
 
         testInstrumentationRunner = "com.example.gudgum_prod_flow.HiltTestRunner"

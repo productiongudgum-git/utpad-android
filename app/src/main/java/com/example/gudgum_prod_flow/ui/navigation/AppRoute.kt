@@ -7,4 +7,6 @@ object AppRoute {
     const val Production = "production"
     const val Packing = "packing"
     const val Dispatch = "dispatch"
+    const val Returns = "returns"
+    const val ModuleSelector = "module_selector"
 }
