@@ -78,9 +78,6 @@ class AuthRepository @Inject constructor(
                 database.permissionDao().deletePermissions(user.userId)
                 database.permissionDao().insertPermissions(cachedPermissions)
 
-                // Cache credentials for offline use (encrypt PIN hash via Android Keystore)
-                credentialStore.storeCredentials(user.userId, pin)
-
                 AuthResult.Success(
                     user = User(
                         userId = user.userId,
@@ -109,27 +106,6 @@ class AuthRepository @Inject constructor(
 
         if (userEntity.status == "locked" || userEntity.status == "suspended") {
             return AuthResult.Error("Account is ${userEntity.status}. Contact your supervisor.")
-        }
-
-        // Check 30-day cache validity
-        if (!credentialStore.isCacheValid(userEntity.userId)) {
-            return AuthResult.Error("Cached credentials expired. Online authentication required.")
-        }
-
-        // Validate PIN against cached credentials
-        val storedPin = credentialStore.retrieveCredentials(userEntity.userId)
-        if (storedPin == null || storedPin != pin) {
-            // Queue failed attempt event
-            database.offlineAuthDao().insertEvent(
-                OfflineAuthEvent(
-                    eventId = UUID.randomUUID().toString(),
-                    userId = userEntity.userId,
-                    eventType = "login_failed",
-                    timestamp = System.currentTimeMillis(),
-                    metadata = """{"phone":"$phone","offline":true}"""
-                )
-            )
-            return AuthResult.Error("Invalid PIN.")
         }
 
         // Queue successful offline login event for later sync

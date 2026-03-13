@@ -45,9 +45,6 @@ class AuthViewModel @Inject constructor(
     private val _phone = MutableStateFlow("")
     val phone: StateFlow<String> = _phone.asStateFlow()
 
-    private val _pin = MutableStateFlow("")
-    val pin: StateFlow<String> = _pin.asStateFlow()
-
     private val _loginState = MutableStateFlow<LoginState>(LoginState.Idle)
     val loginState: StateFlow<LoginState> = _loginState.asStateFlow()
 
@@ -59,26 +56,8 @@ class AuthViewModel @Inject constructor(
 
     fun onPhoneChanged(value: String) {
         _phone.value = value.trim()
-    }
-
-    fun onPinDigit(digit: Int) {
-        if (_pin.value.length < 6) {
-            onPinChanged(_pin.value + digit.toString())
-        }
-    }
-
-    fun onPinBackspace() {
-        if (_pin.value.isNotEmpty()) {
-            _pin.value = _pin.value.dropLast(1)
-        }
-    }
-
-    fun onPinChanged(value: String) {
-        if (value.all { it.isDigit() } && value.length <= 6) {
-            _pin.value = value
-            if (_loginState.value is LoginState.Error) {
-                _loginState.value = LoginState.Idle
-            }
+        if (_loginState.value is LoginState.Error) {
+            _loginState.value = LoginState.Idle
         }
     }
 
@@ -104,7 +83,7 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             _loginState.value = LoginState.Loading
 
-            when (val result = loginUseCase(_phone.value, _pin.value)) {
+            when (val result = loginUseCase(_phone.value, "")) {
                 is com.example.gudgum_prod_flow.domain.model.AuthResult.Success -> {
                     val user = result.user
                     val allowedRoutes = routesForAssignment(user.allowedModules, user.role)
@@ -114,7 +93,6 @@ class AuthViewModel @Inject constructor(
                         _loginState.value = LoginState.Error(
                             "This user is not assigned to any mobile module.",
                         )
-                        _pin.value = ""
                         return@launch
                     }
 
@@ -137,7 +115,6 @@ class AuthViewModel @Inject constructor(
                 }
                 is com.example.gudgum_prod_flow.domain.model.AuthResult.Error -> {
                     _loginState.value = LoginState.Error(result.message)
-                    _pin.value = ""
                 }
             }
         }
@@ -148,7 +125,6 @@ class AuthViewModel @Inject constructor(
         _workerSession.value = null
         _loginState.value = LoginState.Idle
         _phone.value = ""
-        _pin.value = ""
     }
 
     private fun routesForAssignment(allowedModules: List<String>, role: String): Set<String> {

@@ -11,9 +11,6 @@ class LoginUseCase @Inject constructor(
         if (phone.isBlank()) {
             return AuthResult.Error("Phone is required.")
         }
-        if (pin.isBlank()) {
-            return AuthResult.Error("PIN is required.")
-        }
 
         return authRepository.login(phone, pin)
     }

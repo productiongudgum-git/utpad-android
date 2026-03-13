@@ -89,15 +89,8 @@ fun WorkerLoginScreen(
     authViewModel: AuthViewModel = viewModel(),
 ) {
     val phone by authViewModel.phone.collectAsState()
-    val pin by authViewModel.pin.collectAsState()
     val loginState by authViewModel.loginState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-
-    var currentStep by remember { mutableIntStateOf(1) } // 1 for Phone, 2 for PIN
-
-    BackHandler(enabled = currentStep == 2) {
-        currentStep = 1
-    }
 
     LaunchedEffect(loginState) {
         when (val state = loginState) {
@@ -105,7 +98,6 @@ fun WorkerLoginScreen(
                 onLoginSuccess(state.authorizedRoute)
                 authViewModel.consumeLoginSuccess()
             }
-            is LoginState.Error -> snackbarHostState.showSnackbar(state.message)
             else -> Unit
         }
     }
@@ -116,52 +108,28 @@ fun WorkerLoginScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
-                    // Use the drawable directly for the logo
                     androidx.compose.foundation.Image(
                         painter = androidx.compose.ui.res.painterResource(id = com.example.gudgum_prod_flow.R.drawable.gudgum_logo),
                         contentDescription = "GudGum Logo",
                         modifier = Modifier.height(48.dp)
                     )
                 },
-                navigationIcon = {
-                    if (currentStep == 2) {
-                        IconButton(onClick = { currentStep = 1 }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = UtpadTextPrimary)
-                        }
-                    } else {
-                        // Empty box to keep title centered
-                        Box(Modifier.size(48.dp))
-                    }
-                },
+                navigationIcon = { Box(Modifier.size(48.dp)) },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = Color.Transparent
                 )
             )
         }
     ) { padding ->
-        Crossfade(targetState = currentStep, label = "LoginStepTransition") { step ->
-            when (step) {
-                1 -> PhoneInputStep(
-                    modifier = Modifier.padding(padding),
-                    phone = phone,
-                    onPhoneChanged = { newPhone -> 
-                        authViewModel.onPhoneChanged(newPhone)
-                    },
-                    onNextStep = { currentStep = 2 }
-                )
-                2 -> PinInputStep(
-                    modifier = Modifier.padding(padding),
-                    phone = phone,
-                    pin = pin,
-                    onPinChanged = authViewModel::onPinChanged,
-                    onSubmit = authViewModel::submitLogin,
-                    isLoading = loginState is LoginState.Loading,
-                    isError = loginState is LoginState.Error,
-                    isSuccess = loginState is LoginState.Success,
-                    errorMessage = (loginState as? LoginState.Error)?.message
-                )
-            }
-        }
+        PhoneInputStep(
+            modifier = Modifier.padding(padding),
+            phone = phone,
+            onPhoneChanged = authViewModel::onPhoneChanged,
+            onSubmit = authViewModel::submitLogin,
+            isLoading = loginState is LoginState.Loading,
+            isError = loginState is LoginState.Error,
+            errorMessage = (loginState as? LoginState.Error)?.message,
+        )
     }
 }
 
@@ -170,7 +138,10 @@ fun PhoneInputStep(
     modifier: Modifier = Modifier,
     phone: String,
     onPhoneChanged: (String) -> Unit,
-    onNextStep: () -> Unit
+    onSubmit: () -> Unit,
+    isLoading: Boolean = false,
+    isError: Boolean = false,
+    errorMessage: String? = null,
 ) {
     Column(
         modifier = modifier
@@ -203,13 +174,15 @@ fun PhoneInputStep(
             value = phone,
             onValueChange = onPhoneChanged,
             modifier = Modifier.fillMaxWidth(),
+            enabled = !isLoading,
+            isError = isError,
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                 keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone,
                 imeAction = androidx.compose.ui.text.input.ImeAction.Done
             ),
             keyboardActions = androidx.compose.foundation.text.KeyboardActions(
                 onDone = {
-                    if (phone.isNotBlank()) onNextStep()
+                    if (phone.isNotBlank() && !isLoading) onSubmit()
                 }
             ),
             singleLine = true,
@@ -240,21 +213,34 @@ fun PhoneInputStep(
             )
         )
 
+        if (isError && errorMessage != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = errorMessage,
+                style = MaterialTheme.typography.bodySmall,
+                color = UtpadError,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
         Spacer(Modifier.height(28.dp))
 
         Button(
-            onClick = onNextStep,
-            enabled = phone.isNotBlank(),
+            onClick = onSubmit,
+            enabled = phone.isNotBlank() && !isLoading,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
-                .shadow(if (phone.isNotBlank()) 8.dp else 0.dp, RoundedCornerShape(16.dp), spotColor = UtpadPrimary.copy(alpha = 0.5f)),
+                .shadow(if (phone.isNotBlank() && !isLoading) 8.dp else 0.dp, RoundedCornerShape(16.dp), spotColor = UtpadPrimary.copy(alpha = 0.5f)),
             colors = ButtonDefaults.buttonColors(containerColor = UtpadPrimary),
             shape = RoundedCornerShape(16.dp)
         ) {
-            Text("Next Step", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.width(8.dp))
-            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp))
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 3.dp)
+            } else {
+                Text("Login", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
         }
 
         Spacer(Modifier.height(16.dp))
