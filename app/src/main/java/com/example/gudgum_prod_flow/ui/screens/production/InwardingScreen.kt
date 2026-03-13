@@ -1,5 +1,8 @@
 package com.example.gudgum_prod_flow.ui.screens.production
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -50,6 +54,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.FileProvider
+import java.io.File
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -86,6 +93,7 @@ fun InwardingScreen(
     onNavigateToRoute: (String) -> Unit,
     viewModel: InwardingViewModel = hiltViewModel(),
 ) {
+    val context = LocalContext.current
     val selectedIngredient by viewModel.selectedIngredient.collectAsState()
     val batchBarcode by viewModel.batchBarcode.collectAsState()
     val quantity by viewModel.quantity.collectAsState()
@@ -93,9 +101,24 @@ fun InwardingScreen(
     val expiryDate by viewModel.expiryDate.collectAsState()
     val selectedVendor by viewModel.selectedVendor.collectAsState()
     val billNumber by viewModel.billNumber.collectAsState()
+    val billPhotoUri by viewModel.billPhotoUri.collectAsState()
     val submitState by viewModel.submitState.collectAsState()
     val currentStep by viewModel.currentWizardStep.collectAsState()
     val availableIngredients by viewModel.availableIngredients.collectAsState()
+    val vendors by viewModel.vendors.collectAsState()
+    val addIngredientState by viewModel.addIngredientState.collectAsState()
+    val addVendorState by viewModel.addVendorState.collectAsState()
+
+    var showAddIngredientDialog by remember { mutableStateOf(false) }
+    var showAddVendorDialog by remember { mutableStateOf(false) }
+    var cameraPhotoUri by remember { mutableStateOf<Uri?>(null) }
+
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        if (success && cameraPhotoUri != null) viewModel.setBillPhotoUri(cameraPhotoUri.toString())
+    }
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { viewModel.setBillPhotoUri(it.toString()) }
+    }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -106,12 +129,24 @@ fun InwardingScreen(
                 snackbarHostState.showSnackbar(state.message)
                 viewModel.clearSubmitState()
             }
-
             is SubmitState.Error -> {
                 snackbarHostState.showSnackbar(state.message)
                 viewModel.clearSubmitState()
             }
-
+            else -> Unit
+        }
+    }
+    LaunchedEffect(addIngredientState) {
+        when (val state = addIngredientState) {
+            is SubmitState.Success -> { snackbarHostState.showSnackbar(state.message); viewModel.clearAddIngredientState() }
+            is SubmitState.Error -> { snackbarHostState.showSnackbar(state.message); viewModel.clearAddIngredientState() }
+            else -> Unit
+        }
+    }
+    LaunchedEffect(addVendorState) {
+        when (val state = addVendorState) {
+            is SubmitState.Success -> { snackbarHostState.showSnackbar(state.message); viewModel.clearAddVendorState() }
+            is SubmitState.Error -> { snackbarHostState.showSnackbar(state.message); viewModel.clearAddVendorState() }
             else -> Unit
         }
     }
@@ -248,9 +283,7 @@ fun InwardingScreen(
                                         }
                                         Spacer(modifier = Modifier.width(8.dp))
                                         IconButton(
-                                            onClick = {
-                                                snackbarHostState.currentSnackbarData?.dismiss()
-                                            },
+                                            onClick = { showAddIngredientDialog = true },
                                             modifier = Modifier.size(52.dp),
                                         ) {
                                             Icon(
@@ -301,15 +334,33 @@ fun InwardingScreen(
                                             expanded = vendorExpanded,
                                             onDismissRequest = { vendorExpanded = false },
                                         ) {
-                                            viewModel.vendors.forEach { vendor ->
+                                            if (vendors.isEmpty()) {
                                                 DropdownMenuItem(
-                                                    text = { Text(vendor.name) },
-                                                    onClick = {
-                                                        viewModel.onVendorSelected(vendor)
-                                                        vendorExpanded = false
-                                                    },
+                                                    text = { Text("No vendors yet", color = UtpadTextSecondary) },
+                                                    onClick = { vendorExpanded = false },
+                                                    enabled = false,
                                                 )
+                                            } else {
+                                                vendors.forEach { vendor ->
+                                                    DropdownMenuItem(
+                                                        text = { Text(vendor.name) },
+                                                        onClick = {
+                                                            viewModel.onVendorSelected(vendor)
+                                                            vendorExpanded = false
+                                                        },
+                                                    )
+                                                }
                                             }
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(Icons.Filled.Add, contentDescription = null, tint = UtpadPrimary, modifier = Modifier.size(16.dp))
+                                                        Spacer(Modifier.width(6.dp))
+                                                        Text("Add New Vendor", color = UtpadPrimary)
+                                                    }
+                                                },
+                                                onClick = { vendorExpanded = false; showAddVendorDialog = true },
+                                            )
                                         }
                                     }
                                 }
@@ -554,16 +605,15 @@ fun InwardingScreen(
 
                         Card(
                             shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = UtpadBackground,
-                            ),
+                            colors = CardDefaults.cardColors(containerColor = UtpadBackground),
                             modifier = Modifier.fillMaxWidth(),
                         ) {
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 32.dp, horizontal = 12.dp),
+                                    .padding(vertical = 20.dp, horizontal = 16.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
                                 Icon(
                                     imageVector = Icons.Outlined.PhotoCamera,
@@ -571,19 +621,51 @@ fun InwardingScreen(
                                     tint = UtpadPrimary,
                                     modifier = Modifier.size(36.dp)
                                 )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
-                                    text = "Capture Bill Photo",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = UtpadTextPrimary,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "PNG, JPG up to 10MB",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = UtpadTextSecondary,
-                                )
+                                if (billPhotoUri != null) {
+                                    Text(
+                                        text = "Photo captured",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = UtpadSuccess,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                    TextButton(onClick = { viewModel.setBillPhotoUri(null) }) {
+                                        Text("Remove / Retake", color = UtpadTextSecondary)
+                                    }
+                                } else {
+                                    Text(
+                                        text = "Bill Photo",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = UtpadTextPrimary,
+                                        fontWeight = FontWeight.Bold,
+                                    )
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Button(
+                                            onClick = {
+                                                val imageFile = File(context.cacheDir, "bill_${System.currentTimeMillis()}.jpg")
+                                                val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", imageFile)
+                                                cameraPhotoUri = uri
+                                                cameraLauncher.launch(uri)
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = UtpadPrimary, contentColor = Color.White),
+                                            shape = RoundedCornerShape(12.dp),
+                                        ) {
+                                            Icon(Icons.Outlined.PhotoCamera, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(Modifier.width(6.dp))
+                                            Text("Camera")
+                                        }
+                                        OutlinedButton(
+                                            onClick = { galleryLauncher.launch("image/*") },
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(12.dp),
+                                        ) {
+                                            Text("Gallery")
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -665,6 +747,129 @@ fun InwardingScreen(
             }
         }
     }
+
+    if (showAddIngredientDialog) {
+        AddIngredientDialog(
+            onDismiss = { showAddIngredientDialog = false },
+            onConfirm = { name, unit ->
+                showAddIngredientDialog = false
+                viewModel.addIngredient(name, unit)
+            },
+            isSaving = addIngredientState is SubmitState.Loading,
+            units = viewModel.units,
+        )
+    }
+    if (showAddVendorDialog) {
+        AddVendorDialog(
+            onDismiss = { showAddVendorDialog = false },
+            onConfirm = { name, contact ->
+                showAddVendorDialog = false
+                viewModel.addVendor(name, contact)
+            },
+            isSaving = addVendorState is SubmitState.Loading,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddIngredientDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, unit: String) -> Unit,
+    isSaving: Boolean,
+    units: List<String>,
+) {
+    var name by remember { mutableStateOf("") }
+    var selectedUnit by remember { mutableStateOf(units.firstOrNull() ?: "kg") }
+    var unitExpanded by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add New Ingredient", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Ingredient Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                ExposedDropdownMenuBox(
+                    expanded = unitExpanded,
+                    onExpandedChange = { unitExpanded = it },
+                ) {
+                    OutlinedTextField(
+                        value = selectedUnit,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Unit") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = unitExpanded) },
+                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                        singleLine = true,
+                    )
+                    ExposedDropdownMenu(
+                        expanded = unitExpanded,
+                        onDismissRequest = { unitExpanded = false },
+                    ) {
+                        units.forEach { unit ->
+                            DropdownMenuItem(
+                                text = { Text(unit) },
+                                onClick = { selectedUnit = unit; unitExpanded = false },
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { if (name.isNotBlank()) onConfirm(name, selectedUnit) },
+                enabled = name.isNotBlank() && !isSaving,
+            ) { Text(if (isSaving) "Saving..." else "Add") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
+@Composable
+private fun AddVendorDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (name: String, contact: String?) -> Unit,
+    isSaving: Boolean,
+) {
+    var name by remember { mutableStateOf("") }
+    var contact by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add New Vendor", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Vendor Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = contact,
+                    onValueChange = { contact = it },
+                    label = { Text("Contact (optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { if (name.isNotBlank()) onConfirm(name, contact.ifBlank { null }) },
+                enabled = name.isNotBlank() && !isSaving,
+            ) { Text(if (isSaving) "Saving..." else "Add") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable

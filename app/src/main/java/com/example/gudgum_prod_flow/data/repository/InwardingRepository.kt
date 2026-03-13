@@ -5,8 +5,12 @@ import com.example.gudgum_prod_flow.data.local.dao.PendingOperationEventDao
 import com.example.gudgum_prod_flow.data.local.entity.CachedIngredientEntity
 import com.example.gudgum_prod_flow.data.local.entity.PendingOperationEventEntity
 import com.example.gudgum_prod_flow.data.remote.api.SupabaseApiClient
+import com.example.gudgum_prod_flow.data.remote.dto.CreateIngredientRequest
+import com.example.gudgum_prod_flow.data.remote.dto.CreateSupplierRequest
+import com.example.gudgum_prod_flow.data.remote.dto.IngredientDto
 import com.example.gudgum_prod_flow.data.remote.dto.SubmitInwardEventRequest
 import com.example.gudgum_prod_flow.data.remote.dto.SubmitReturnEventRequest
+import com.example.gudgum_prod_flow.data.remote.dto.SupplierDto
 import com.example.gudgum_prod_flow.data.session.WorkerIdentityStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -111,6 +115,34 @@ class InwardingRepository @Inject constructor(
                     )
                 )
             }
+        }
+    }
+
+    suspend fun getSuppliers(): List<SupplierDto> = withContext(Dispatchers.IO) {
+        try {
+            val response = api.getSuppliers()
+            if (response.isSuccessful) response.body() ?: emptyList() else emptyList()
+        } catch (e: Exception) { emptyList() }
+    }
+
+    suspend fun createSupplier(name: String, contact: String? = null): Result<SupplierDto> = withContext(Dispatchers.IO) {
+        runCatching {
+            val id = "sup-${System.currentTimeMillis()}"
+            val response = api.insertSupplier(CreateSupplierRequest(id = id, name = name, contact = contact))
+            if (!response.isSuccessful) error("Failed to create supplier: ${response.code()}")
+            response.body()?.firstOrNull() ?: SupplierDto(id = id, name = name, contact = contact)
+        }
+    }
+
+    suspend fun createIngredient(name: String, unit: String): Result<CachedIngredientEntity> = withContext(Dispatchers.IO) {
+        runCatching {
+            val id = "ing-${System.currentTimeMillis()}"
+            val response = api.insertIngredient(CreateIngredientRequest(id = id, name = name, unit = unit))
+            if (!response.isSuccessful) error("Failed to create ingredient: ${response.code()}")
+            val dto = response.body()?.firstOrNull() ?: IngredientDto(id = id, name = name, unit = unit)
+            val entity = CachedIngredientEntity(id = dto.id, name = dto.name, unit = dto.unit, active = dto.active)
+            ingredientDao.insertAll(listOf(entity))
+            entity
         }
     }
 }

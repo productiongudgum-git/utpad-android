@@ -40,6 +40,26 @@ interface SupabaseApiService {
         @Query("order") order: String = "name.asc",
     ): Response<List<IngredientDto>>
 
+    @POST("rest/v1/recipe_ingredients")
+    suspend fun insertIngredient(
+        @Body request: CreateIngredientRequest,
+        @Header("Prefer") prefer: String = "return=representation",
+    ): Response<List<IngredientDto>>
+
+    // ── Suppliers ────────────────────────────────────────────────
+    @GET("rest/v1/suppliers")
+    suspend fun getSuppliers(
+        @Query("active") active: String = "eq.true",
+        @Query("select") select: String = "id,name,contact,active",
+        @Query("order") order: String = "name.asc",
+    ): Response<List<SupplierDto>>
+
+    @POST("rest/v1/suppliers")
+    suspend fun insertSupplier(
+        @Body request: CreateSupplierRequest,
+        @Header("Prefer") prefer: String = "return=representation",
+    ): Response<List<SupplierDto>>
+
     // ── Production Batches ───────────────────────────────────────
     @POST("rest/v1/production_batches")
     suspend fun insertProductionBatch(

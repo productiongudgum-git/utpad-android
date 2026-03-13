@@ -145,6 +145,32 @@ data class SubmitInwardEventRequest(
     @SerialName("worker_id") val workerId: String,
 )
 
+// ── Suppliers ────────────────────────────────────────────────────
+@Serializable
+data class SupplierDto(
+    val id: String,
+    val name: String,
+    val contact: String? = null,
+    val active: Boolean = true,
+    @SerialName("created_at") val createdAt: String? = null,
+)
+
+@Serializable
+data class CreateSupplierRequest(
+    val id: String,
+    val name: String,
+    val contact: String? = null,
+    val active: Boolean = true,
+)
+
+@Serializable
+data class CreateIngredientRequest(
+    val id: String,
+    val name: String,
+    val unit: String,
+    val active: Boolean = true,
+)
+
 // ── Returns ─────────────────────────────────────────────────────
 @Serializable
 data class SubmitReturnEventRequest(

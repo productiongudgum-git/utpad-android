@@ -63,7 +63,18 @@ class InwardingViewModel @Inject constructor(
     private val _billNumber = MutableStateFlow("")
     val billNumber: StateFlow<String> = _billNumber.asStateFlow()
 
-    val vendors: List<Vendor> = emptyList()
+    private val _billPhotoUri = MutableStateFlow<String?>(null)
+    val billPhotoUri: StateFlow<String?> = _billPhotoUri.asStateFlow()
+
+    private val _vendors = MutableStateFlow<List<Vendor>>(emptyList())
+    val vendors: StateFlow<List<Vendor>> = _vendors.asStateFlow()
+
+    private val _addIngredientState = MutableStateFlow<SubmitState>(SubmitState.Idle)
+    val addIngredientState: StateFlow<SubmitState> = _addIngredientState.asStateFlow()
+
+    private val _addVendorState = MutableStateFlow<SubmitState>(SubmitState.Idle)
+    val addVendorState: StateFlow<SubmitState> = _addVendorState.asStateFlow()
+
     val units: List<String> = listOf("kg", "L", "g", "ml", "pcs")
 
     private val _submitState = MutableStateFlow<SubmitState>(SubmitState.Idle)
@@ -99,6 +110,10 @@ class InwardingViewModel @Inject constructor(
                 _ingredients.value = list
             }
         }
+        viewModelScope.launch {
+            val suppliers = repository.getSuppliers()
+            _vendors.value = suppliers.map { Vendor(id = it.id, name = it.name) }
+        }
     }
 
     fun setOnlineStatus(online: Boolean) { isOnline = online }
@@ -106,6 +121,8 @@ class InwardingViewModel @Inject constructor(
     fun refreshData() {
         viewModelScope.launch {
             repository.refreshIngredients()
+            val suppliers = repository.getSuppliers()
+            _vendors.value = suppliers.map { Vendor(id = it.id, name = it.name) }
             if (isOnline) {
                 dispatchRepository.getDispatchedBatches().onSuccess { batches ->
                     _dispatchedBatches.value = batches
@@ -113,6 +130,41 @@ class InwardingViewModel @Inject constructor(
             }
         }
     }
+
+    fun setBillPhotoUri(uri: String?) { _billPhotoUri.value = uri }
+
+    fun addIngredient(name: String, unit: String) {
+        viewModelScope.launch {
+            _addIngredientState.value = SubmitState.Loading
+            repository.createIngredient(name.trim(), unit)
+                .onSuccess { entity ->
+                    onIngredientSelected(entity)
+                    _addIngredientState.value = SubmitState.Success("\"${entity.name}\" added")
+                }
+                .onFailure { e ->
+                    _addIngredientState.value = SubmitState.Error(e.message ?: "Failed to add ingredient")
+                }
+        }
+    }
+
+    fun addVendor(name: String, contact: String? = null) {
+        viewModelScope.launch {
+            _addVendorState.value = SubmitState.Loading
+            repository.createSupplier(name.trim(), contact?.ifBlank { null })
+                .onSuccess { dto ->
+                    val newVendor = Vendor(id = dto.id, name = dto.name)
+                    _vendors.value = _vendors.value + newVendor
+                    onVendorSelected(newVendor)
+                    _addVendorState.value = SubmitState.Success("\"${dto.name}\" added")
+                }
+                .onFailure { e ->
+                    _addVendorState.value = SubmitState.Error(e.message ?: "Failed to add vendor")
+                }
+        }
+    }
+
+    fun clearAddIngredientState() { _addIngredientState.value = SubmitState.Idle }
+    fun clearAddVendorState() { _addVendorState.value = SubmitState.Idle }
 
     fun onIngredientSelected(ingredient: CachedIngredientEntity) {
         _selectedIngredient.value = ingredient
@@ -126,7 +178,10 @@ class InwardingViewModel @Inject constructor(
     fun onSupplierChanged(value: String) { _supplier.value = value }
 
     fun onBarcodeChanged(value: String) { _lotRef.value = value }
-    fun onVendorSelected(vendor: Vendor) { _selectedVendor.value = vendor }
+    fun onVendorSelected(vendor: Vendor) {
+        _selectedVendor.value = vendor
+        _supplier.value = vendor.name
+    }
     fun onUnitSelected(unit: String) { _selectedUnit.value = unit }
     fun onBillNumberChanged(value: String) { _billNumber.value = value }
     fun submit() = submitInward()
@@ -218,12 +273,15 @@ class InwardingViewModel @Inject constructor(
 
     fun resetInward() {
         _selectedIngredient.value = null
+        _selectedVendor.value = null
         _quantity.value = ""
         _selectedUnit.value = "kg"
         _inwardDate.value = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
         _expiryDate.value = ""
         _lotRef.value = ""
         _supplier.value = ""
+        _billNumber.value = ""
+        _billPhotoUri.value = null
         _submitState.value = SubmitState.Idle
         _currentWizardStep.value = 1
     }
