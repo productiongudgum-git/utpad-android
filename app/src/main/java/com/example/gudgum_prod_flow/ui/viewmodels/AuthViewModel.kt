@@ -45,6 +45,9 @@ class AuthViewModel @Inject constructor(
     private val _phone = MutableStateFlow("")
     val phone: StateFlow<String> = _phone.asStateFlow()
 
+    private val _pin = MutableStateFlow("")
+    val pin: StateFlow<String> = _pin.asStateFlow()
+
     private val _loginState = MutableStateFlow<LoginState>(LoginState.Idle)
     val loginState: StateFlow<LoginState> = _loginState.asStateFlow()
 
@@ -56,6 +59,23 @@ class AuthViewModel @Inject constructor(
 
     fun onPhoneChanged(value: String) {
         _phone.value = value.trim()
+        if (_loginState.value is LoginState.Error) {
+            _loginState.value = LoginState.Idle
+        }
+    }
+
+    fun onPinChanged(value: String) {
+        _pin.value = value.filter { it.isDigit() }.take(6)
+        if (_loginState.value is LoginState.Error) {
+            _loginState.value = LoginState.Idle
+        }
+    }
+
+    fun clearPin() {
+        _pin.value = ""
+    }
+
+    fun resetLoginState() {
         if (_loginState.value is LoginState.Error) {
             _loginState.value = LoginState.Idle
         }
@@ -83,7 +103,7 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             _loginState.value = LoginState.Loading
 
-            when (val result = loginUseCase(_phone.value, "")) {
+            when (val result = loginUseCase(_phone.value, _pin.value)) {
                 is com.example.gudgum_prod_flow.domain.model.AuthResult.Success -> {
                     val user = result.user
                     val allowedRoutes = routesForAssignment(user.allowedModules, user.role)
@@ -125,6 +145,7 @@ class AuthViewModel @Inject constructor(
         _workerSession.value = null
         _loginState.value = LoginState.Idle
         _phone.value = ""
+        _pin.value = ""
     }
 
     private fun routesForAssignment(allowedModules: List<String>, role: String): Set<String> {
