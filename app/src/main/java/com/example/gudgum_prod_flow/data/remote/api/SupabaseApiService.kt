@@ -36,7 +36,7 @@ interface SupabaseApiService {
     @GET("rest/v1/recipe_ingredients")
     suspend fun getIngredients(
         @Query("active") active: String = "eq.true",
-        @Query("select") select: String = "id,name,unit,active",
+        @Query("select") select: String = "id,name,unit,active,default_supplier_id,default_supplier_name",
         @Query("order") order: String = "name.asc",
     ): Response<List<IngredientDto>>
 
@@ -45,6 +45,12 @@ interface SupabaseApiService {
         @Body request: CreateIngredientRequest,
         @Header("Prefer") prefer: String = "return=representation",
     ): Response<List<IngredientDto>>
+
+    @POST("rest/v1/ingredient_suppliers")
+    suspend fun insertIngredientSupplierLink(
+        @Body request: CreateIngredientSupplierLinkRequest,
+        @Header("Prefer") prefer: String = "return=minimal",
+    ): Response<Unit>
 
     // ── Suppliers ────────────────────────────────────────────────
     @GET("rest/v1/suppliers")
@@ -130,4 +136,108 @@ interface SupabaseApiService {
         @Query("select") select: String = "sku_id,batch_code,boxes_available,boxes_returned",
         @Query("boxes_available") boxesFilter: String = "gt.0",
     ): Response<List<Map<String, Any>>>
+
+    // ── Gud Gum Tables (gg_ prefix) ─────────────────────────────
+    @GET("rest/v1/gg_users")
+    suspend fun getGgUserByPhone(
+        @Query("mobile_number") mobileNumber: String, // "eq.{phone}"
+        @Query("role") role: String = "eq.worker",
+        @Query("active") active: String = "eq.true",
+        @Query("select") select: String = "id,mobile_number,name,role,modules,active",
+    ): Response<List<GgUserDto>>
+
+    @GET("rest/v1/gg_customers")
+    suspend fun getGgCustomers(
+        @Query("select") select: String = "id,name,contact_person,phone",
+        @Query("order") order: String = "name.asc",
+    ): Response<List<GgCustomerDto>>
+
+    @GET("rest/v1/gg_batches")
+    suspend fun getGgBatchByCode(
+        @Query("batch_code") batchCode: String, // "eq.{code}"
+        @Query("select") select: String = "id,batch_code,status",
+    ): Response<List<GgBatchDto>>
+
+    @POST("rest/v1/gg_packing")
+    suspend fun insertGgPacking(
+        @Body request: GgPackingRequest,
+        @Header("Prefer") prefer: String = "return=minimal",
+    ): Response<Unit>
+
+    @POST("rest/v1/gg_dispatch")
+    suspend fun insertGgDispatch(
+        @Body request: GgDispatchRequest,
+        @Header("Prefer") prefer: String = "return=minimal",
+    ): Response<Unit>
+
+    // ── Gud Gum Production (gg_ tables) ─────────────────────────────
+    @GET("rest/v1/gg_flavors")
+    suspend fun getGgFlavors(
+        @Query("active") active: String = "eq.true",
+        @Query("select") select: String = "id,name,code,active",
+        @Query("order") order: String = "name.asc",
+    ): Response<List<GgFlavorDto>>
+
+    @GET("rest/v1/gg_recipes")
+    suspend fun getGgRecipeLines(
+        @Query("flavor_id") flavorId: String, // "eq.{uuid}"
+        @Query("select") select: String = "id,flavor_id,ingredient_id,qty_kg,ingredient:gg_ingredients(id,name,unit,active)",
+    ): Response<List<GgRecipeLineDto>>
+
+    @GET("rest/v1/gg_ingredients")
+    suspend fun getGgIngredients(
+        @Query("active") active: String = "eq.true",
+        @Query("select") select: String = "id,name,unit,active,default_vendor_id",
+        @Query("order") order: String = "name.asc",
+    ): Response<List<GgIngredientDto>>
+
+    @GET("rest/v1/gg_vendors")
+    suspend fun getGgVendors(
+        @Query("active") active: String = "eq.true",
+        @Query("select") select: String = "id,name,contact_phone,active",
+        @Query("order") order: String = "name.asc",
+    ): Response<List<GgVendorDto>>
+
+    @POST("rest/v1/gg_batches")
+    suspend fun insertGgBatch(
+        @Body request: GgBatchInsertRequest,
+        @Header("Prefer") prefer: String = "return=representation",
+    ): Response<List<GgBatchDto>>
+
+    @POST("rest/v1/gg_production")
+    suspend fun insertGgProductionRecords(
+        @Body request: List<GgProductionRecordRequest>,
+        @Header("Prefer") prefer: String = "return=minimal",
+    ): Response<Unit>
+
+    @POST("rest/v1/gg_inwarding")
+    suspend fun insertGgInwarding(
+        @Body request: GgInwardingRequest,
+        @Header("Prefer") prefer: String = "return=minimal",
+    ): Response<Unit>
+
+    @POST("rest/v1/gg_returns")
+    suspend fun insertGgReturn(
+        @Body request: GgReturnRequest,
+        @Header("Prefer") prefer: String = "return=minimal",
+    ): Response<Unit>
+
+    @POST("rest/v1/gg_vendors")
+    suspend fun insertGgVendor(
+        @Body request: GgVendorInsertRequest,
+        @Header("Prefer") prefer: String = "return=representation",
+    ): Response<List<GgVendorDto>>
+
+    @POST("rest/v1/gg_ingredients")
+    suspend fun insertGgIngredient(
+        @Body request: GgIngredientInsertRequest,
+        @Header("Prefer") prefer: String = "return=representation",
+    ): Response<List<GgIngredientDto>>
+
+    @GET("rest/v1/gg_dispatch")
+    suspend fun getGgDispatchedBatches(
+        @Query("select") select: String = "id,batch_id,dispatch_date,quantity_dispatched,batch:gg_batches(id,batch_code,status)",
+        @Query("order") order: String = "dispatch_date.desc",
+        @Query("limit") limit: Int = 50,
+    ): Response<List<GgDispatchSummaryDto>>
 }

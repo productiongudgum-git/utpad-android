@@ -1,5 +1,6 @@
 package com.example.gudgum_prod_flow.ui.screens.production
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,29 +10,24 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -40,8 +36,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,6 +44,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,19 +52,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.gudgum_prod_flow.ui.components.BarcodeScannerButton
 import com.example.gudgum_prod_flow.ui.navigation.AppRoute
-import com.example.gudgum_prod_flow.ui.viewmodels.PackingViewModel
-import com.example.gudgum_prod_flow.ui.viewmodels.SubmitState
-import com.example.gudgum_prod_flow.ui.theme.UtpadPrimary
-import com.example.gudgum_prod_flow.ui.theme.UtpadSuccess
+import com.example.gudgum_prod_flow.ui.theme.UtpadBackground
 import com.example.gudgum_prod_flow.ui.theme.UtpadOutline
+import com.example.gudgum_prod_flow.ui.theme.UtpadPrimary
+import com.example.gudgum_prod_flow.ui.theme.UtpadSurface
 import com.example.gudgum_prod_flow.ui.theme.UtpadTextPrimary
 import com.example.gudgum_prod_flow.ui.theme.UtpadTextSecondary
-import com.example.gudgum_prod_flow.ui.theme.UtpadBackground
-import com.example.gudgum_prod_flow.ui.theme.UtpadSurface
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.ui.draw.shadow
-import androidx.compose.foundation.background
+import com.example.gudgum_prod_flow.ui.viewmodels.PackingViewModel
+import com.example.gudgum_prod_flow.ui.viewmodels.SubmitState
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -82,9 +76,7 @@ fun PackingScreen(
     onNavigateToRoute: (String) -> Unit,
     viewModel: PackingViewModel = hiltViewModel(),
 ) {
-    val selectedBatch by viewModel.selectedBatch.collectAsState()
-    val selectedSku by viewModel.selectedSku.collectAsState()
-    val availableSkus by viewModel.availableSkus.collectAsState()
+    val batchCode by viewModel.batchCode.collectAsState()
     val qtyPacked by viewModel.qtyPacked.collectAsState()
     val boxesMade by viewModel.boxesMade.collectAsState()
     val packingDate by viewModel.packingDate.collectAsState()
@@ -94,6 +86,7 @@ fun PackingScreen(
     val currentStep by viewModel.currentWizardStep.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(submitState) {
         when (val state = submitState) {
@@ -117,11 +110,7 @@ fun PackingScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = UtpadTextPrimary
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = UtpadTextPrimary)
                     }
                 },
                 actions = {
@@ -129,9 +118,7 @@ fun PackingScreen(
                         Text("Logout", color = UtpadPrimary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = UtpadBackground
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = UtpadBackground)
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -158,15 +145,15 @@ fun PackingScreen(
                 WizardProgressBar(
                     currentStep = currentStep,
                     totalSteps = 3,
-                    stepTitle = when(currentStep) {
-                        1 -> "Batch & SKU"
+                    stepTitle = when (currentStep) {
+                        1 -> "Batch Code"
                         2 -> "Output & Date"
                         else -> "Review & Summary"
                     }
                 )
 
                 when (currentStep) {
-                    // ── Step 1: Select Batch & SKU ──
+                    // ── Step 1: Batch Code ──
                     1 -> {
                         Card(
                             shape = RoundedCornerShape(24.dp),
@@ -177,110 +164,42 @@ fun PackingScreen(
                                 modifier = Modifier.padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
-                                // Semi-finished Batch Code dropdown
-                                Column {
-                                    Text(
-                                        text = "SEMI-FINISHED BATCH CODE",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = UtpadTextSecondary,
-                                        fontWeight = FontWeight.SemiBold
+                                Text(
+                                    text = "BATCH CODE",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = UtpadTextSecondary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    OutlinedTextField(
+                                        value = batchCode,
+                                        onValueChange = viewModel::onBatchCodeChanged,
+                                        placeholder = { Text("Scan or enter batch code", color = UtpadTextSecondary) },
+                                        singleLine = true,
+                                        modifier = Modifier.weight(1f),
+                                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = UtpadPrimary,
+                                            unfocusedBorderColor = UtpadOutline,
+                                            focusedContainerColor = UtpadBackground,
+                                            unfocusedContainerColor = UtpadSurface,
+                                        ),
+                                        shape = RoundedCornerShape(16.dp),
                                     )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    var batchExpanded by remember { mutableStateOf(false) }
-                                    ExposedDropdownMenuBox(
-                                        expanded = batchExpanded,
-                                        onExpandedChange = { batchExpanded = it },
-                                    ) {
-                                        OutlinedTextField(
-                                            value = selectedBatch,
-                                            onValueChange = {},
-                                            readOnly = true,
-                                            placeholder = { Text("Select Batch...", color = UtpadTextSecondary) },
-                                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = batchExpanded) },
-                                            modifier = Modifier
-                                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                                                .fillMaxWidth(),
-                                            singleLine = true,
-                                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                                focusedBorderColor = UtpadPrimary,
-                                                unfocusedBorderColor = UtpadOutline,
-                                                focusedContainerColor = UtpadBackground,
-                                                unfocusedContainerColor = UtpadSurface,
-                                            ),
-                                            shape = RoundedCornerShape(16.dp),
-                                        )
-                                        ExposedDropdownMenu(
-                                            expanded = batchExpanded,
-                                            onDismissRequest = { batchExpanded = false },
-                                        ) {
-                                            viewModel.batches.forEach { batch ->
-                                                DropdownMenuItem(
-                                                    text = { Text(batch) },
-                                                    onClick = {
-                                                        viewModel.onBatchSelected(batch)
-                                                        batchExpanded = false
-                                                    },
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Packing SKU dropdown (filtered by batch)
-                                Column {
-                                    Text(
-                                        text = "PACKING SKU",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = UtpadTextSecondary,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    var skuExpanded by remember { mutableStateOf(false) }
-                                    ExposedDropdownMenuBox(
-                                        expanded = skuExpanded,
-                                        onExpandedChange = { skuExpanded = it },
-                                    ) {
-                                        OutlinedTextField(
-                                            value = selectedSku?.name ?: "",
-                                            onValueChange = {},
-                                            readOnly = true,
-                                            placeholder = { Text("Select Product SKU...", color = UtpadTextSecondary) },
-                                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = skuExpanded) },
-                                            modifier = Modifier
-                                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                                                .fillMaxWidth(),
-                                            singleLine = true,
-                                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                                focusedBorderColor = UtpadPrimary,
-                                                unfocusedBorderColor = UtpadOutline,
-                                                focusedContainerColor = UtpadBackground,
-                                                unfocusedContainerColor = UtpadSurface,
-                                            ),
-                                            shape = RoundedCornerShape(16.dp),
-                                        )
-                                        ExposedDropdownMenu(
-                                            expanded = skuExpanded,
-                                            onDismissRequest = { skuExpanded = false },
-                                        ) {
-                                            if (availableSkus.isEmpty()) {
-                                                DropdownMenuItem(
-                                                    text = { Text("No SKUs for this batch", color = UtpadTextSecondary) },
-                                                    onClick = { skuExpanded = false },
-                                                    enabled = false,
-                                                )
-                                            } else {
-                                                availableSkus.forEach { sku ->
-                                                    DropdownMenuItem(
-                                                        text = { Text(sku.name) },
-                                                        onClick = {
-                                                            viewModel.onSkuSelected(sku)
-                                                            skuExpanded = false
-                                                        },
-                                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    BarcodeScannerButton(
+                                        prompt = "Scan packing batch barcode",
+                                        onBarcodeScanned = viewModel::onBatchCodeChanged,
+                                        onScanError = { message ->
+                                            if (message != "Scan cancelled") {
+                                                coroutineScope.launch {
+                                                    snackbarHostState.showSnackbar(message)
                                                 }
                                             }
                                         }
-                                    }
+                                    )
                                 }
                             }
                         }
@@ -297,7 +216,6 @@ fun PackingScreen(
                                 modifier = Modifier.padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
-                                // Qty Packed + Boxes Made grid
                                 Row(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                                     modifier = Modifier.fillMaxWidth(),
@@ -312,10 +230,10 @@ fun PackingScreen(
                                         Spacer(modifier = Modifier.height(8.dp))
                                         OutlinedTextField(
                                             value = qtyPacked,
-                                            onValueChange = { viewModel.onQtyPackedChanged(it) },
+                                            onValueChange = viewModel::onQtyPackedChanged,
                                             placeholder = { Text("0", color = UtpadTextSecondary) },
                                             suffix = { Text("kg", color = UtpadTextSecondary) },
-                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                             singleLine = true,
                                             modifier = Modifier.fillMaxWidth(),
                                             colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
@@ -329,7 +247,7 @@ fun PackingScreen(
                                     }
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = "BOXES MADE",
+                                            text = "BOXES COUNT",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = UtpadTextSecondary,
                                             fontWeight = FontWeight.SemiBold
@@ -337,9 +255,9 @@ fun PackingScreen(
                                         Spacer(modifier = Modifier.height(8.dp))
                                         OutlinedTextField(
                                             value = boxesMade,
-                                            onValueChange = { viewModel.onBoxesMadeChanged(it) },
+                                            onValueChange = viewModel::onBoxesMadeChanged,
                                             placeholder = { Text("0", color = UtpadTextSecondary) },
-                                            suffix = { Text("units", color = UtpadTextSecondary) },
+                                            suffix = { Text("boxes", color = UtpadTextSecondary) },
                                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                             singleLine = true,
                                             modifier = Modifier.fillMaxWidth(),
@@ -354,10 +272,9 @@ fun PackingScreen(
                                     }
                                 }
 
-                                // Date of Packing - Smart Date Picker
                                 Column {
                                     Text(
-                                        text = "DATE OF PACKING",
+                                        text = "PACKING DATE",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = UtpadTextSecondary,
                                         fontWeight = FontWeight.SemiBold
@@ -381,7 +298,6 @@ fun PackingScreen(
                                             ),
                                             shape = RoundedCornerShape(16.dp),
                                         )
-                                        
                                         Surface(
                                             modifier = Modifier.matchParentSize(),
                                             color = androidx.compose.ui.graphics.Color.Transparent,
@@ -401,9 +317,7 @@ fun PackingScreen(
                                                         viewModel.onPackingDateChanged(formatter.format(Date(selectedMillis)))
                                                     }
                                                     showDatePicker = false
-                                                }) {
-                                                    Text("OK", color = UtpadPrimary)
-                                                }
+                                                }) { Text("OK", color = UtpadPrimary) }
                                             },
                                             dismissButton = {
                                                 TextButton(onClick = { showDatePicker = false }) {
@@ -419,7 +333,7 @@ fun PackingScreen(
                         }
                     }
 
-                    // ── Step 3: Notes & Shift Summary Review ──
+                    // ── Step 3: Notes & Summary Review ──
                     3 -> {
                         Card(
                             shape = RoundedCornerShape(24.dp),
@@ -430,7 +344,6 @@ fun PackingScreen(
                                 modifier = Modifier.padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
-                                // Notes
                                 Column {
                                     Text(
                                         text = "NOTES (OPTIONAL)",
@@ -441,7 +354,7 @@ fun PackingScreen(
                                     Spacer(modifier = Modifier.height(8.dp))
                                     OutlinedTextField(
                                         value = notes,
-                                        onValueChange = { viewModel.onNotesChanged(it) },
+                                        onValueChange = viewModel::onNotesChanged,
                                         placeholder = { Text("Any issues during packing?", color = UtpadTextSecondary) },
                                         maxLines = 3,
                                         modifier = Modifier.fillMaxWidth(),
@@ -457,33 +370,26 @@ fun PackingScreen(
                             }
                         }
 
-                        // Shift Summary Card
                         Card(
                             shape = RoundedCornerShape(24.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = UtpadPrimary.copy(alpha = 0.1f),
-                            ),
+                            colors = CardDefaults.cardColors(containerColor = UtpadPrimary.copy(alpha = 0.1f)),
                             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                         ) {
                             Row(
                                 modifier = Modifier.padding(16.dp),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                Icon(
-                                    Icons.Filled.Info,
-                                    contentDescription = null,
-                                    tint = UtpadPrimary,
-                                )
+                                Icon(Icons.Filled.Info, contentDescription = null, tint = UtpadPrimary)
                                 Column {
                                     Text(
-                                        text = "Shift Summary",
+                                        text = "Session Summary",
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.SemiBold,
                                         color = UtpadPrimary,
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = "${shiftSummary.shift} shift - Total packed: ${shiftSummary.totalPacked} kg, ${shiftSummary.totalBoxes} boxes",
+                                        text = "Batch: $batchCode — ${qtyPacked}kg in ${boxesMade} boxes on $packingDate",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = UtpadTextPrimary,
                                     )
@@ -510,38 +416,22 @@ fun PackingScreen(
                     ) {
                         OutlinedButton(
                             onClick = {
-                                if (currentStep > 1) {
-                                    viewModel.previousStep()
-                                } else {
-                                    viewModel.clear()
-                                }
+                                if (currentStep > 1) viewModel.previousStep() else viewModel.clear()
                             },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp),
+                            modifier = Modifier.weight(1f).height(56.dp),
                             shape = RoundedCornerShape(20.dp),
                             colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
                                 contentColor = UtpadTextPrimary
                             )
                         ) {
-                            if (currentStep > 1) {
-                                Text("Back", fontWeight = FontWeight.Bold)
-                            } else {
-                                Text("Reset", fontWeight = FontWeight.Bold)
-                            }
+                            Text(if (currentStep > 1) "Back" else "Reset", fontWeight = FontWeight.Bold)
                         }
 
                         Button(
                             onClick = {
-                                if (currentStep < 3) {
-                                    viewModel.nextStep()
-                                } else {
-                                    viewModel.submit()
-                                }
+                                if (currentStep < 3) viewModel.nextStep() else viewModel.submit()
                             },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp),
+                            modifier = Modifier.weight(1f).height(56.dp),
                             shape = RoundedCornerShape(20.dp),
                             colors = androidx.compose.material3.ButtonDefaults.buttonColors(
                                 containerColor = UtpadPrimary,
@@ -549,11 +439,10 @@ fun PackingScreen(
                             ),
                             enabled = submitState !is SubmitState.Loading,
                         ) {
-                            if (currentStep < 3) {
-                                Text("Continue", fontWeight = FontWeight.Bold)
-                            } else {
-                                Text("Confirm & Submit", fontWeight = FontWeight.Bold)
-                            }
+                            Text(
+                                if (currentStep < 3) "Continue" else "Confirm & Submit",
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                     if (AppRoute.Dispatch in allowedRoutes) {
@@ -580,7 +469,7 @@ private fun WizardProgressBar(
 ) {
     val progress = currentStep.toFloat() / totalSteps.toFloat()
     val percentage = (progress * 100).toInt()
-    
+
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -612,8 +501,7 @@ private fun WizardProgressBar(
                 fontWeight = FontWeight.SemiBold
             )
         }
-        
-        // Progress Bar Line
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()

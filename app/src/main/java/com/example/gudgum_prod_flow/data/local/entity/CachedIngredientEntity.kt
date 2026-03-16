@@ -9,4 +9,5 @@ data class CachedIngredientEntity(
     val name: String,
     val unit: String,
     val active: Boolean = true,
+    val defaultSupplierName: String? = null,
 )

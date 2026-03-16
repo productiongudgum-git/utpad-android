@@ -5,19 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.example.gudgum_prod_flow.data.session.WorkerIdentityStore
 import com.example.gudgum_prod_flow.ui.navigation.AppRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-
-data class DemoWorkerCredential(
-    val label: String,
-    val phone: String,
-    val pin: String,
-    val role: String,
-)
 
 data class WorkerSession(
     val workerLabel: String,
@@ -32,7 +24,6 @@ sealed class LoginState {
     object Loading : LoginState()
     data class Success(val workerLabel: String, val authorizedRoute: String) : LoginState()
     data class Error(val message: String) : LoginState()
-    data class Locked(val minutesRemaining: Int) : LoginState()
 }
 
 @HiltViewModel
@@ -40,19 +31,11 @@ class AuthViewModel @Inject constructor(
     private val loginUseCase: com.example.gudgum_prod_flow.domain.usecase.LoginUseCase
 ) : ViewModel() {
 
-    // Removed DemoCredentials logic since we now use real authentication via Vercel/Supabase
-
     private val _phone = MutableStateFlow("")
     val phone: StateFlow<String> = _phone.asStateFlow()
 
-    private val _pin = MutableStateFlow("")
-    val pin: StateFlow<String> = _pin.asStateFlow()
-
     private val _loginState = MutableStateFlow<LoginState>(LoginState.Idle)
     val loginState: StateFlow<LoginState> = _loginState.asStateFlow()
-
-    private val _rememberDevice = MutableStateFlow(false)
-    val rememberDevice: StateFlow<Boolean> = _rememberDevice.asStateFlow()
 
     private val _workerSession = MutableStateFlow<WorkerSession?>(null)
     val workerSession: StateFlow<WorkerSession?> = _workerSession.asStateFlow()
@@ -64,25 +47,10 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    fun onPinChanged(value: String) {
-        _pin.value = value.filter { it.isDigit() }.take(6)
-        if (_loginState.value is LoginState.Error) {
-            _loginState.value = LoginState.Idle
-        }
-    }
-
-    fun clearPin() {
-        _pin.value = ""
-    }
-
     fun resetLoginState() {
         if (_loginState.value is LoginState.Error) {
             _loginState.value = LoginState.Idle
         }
-    }
-
-    fun onRememberDeviceChanged(rememberDevice: Boolean) {
-        _rememberDevice.value = rememberDevice
     }
 
     fun submitLogin() {
@@ -103,10 +71,10 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             _loginState.value = LoginState.Loading
 
-            when (val result = loginUseCase(_phone.value, _pin.value)) {
+            when (val result = loginUseCase(_phone.value)) {
                 is com.example.gudgum_prod_flow.domain.model.AuthResult.Success -> {
                     val user = result.user
-                    val allowedRoutes = routesForAssignment(user.allowedModules, user.role)
+                    val allowedRoutes = routesForModules(user.allowedModules, user.role)
                     val homeRoute = allowedRoutes.firstOrNull()
 
                     if (homeRoute == null) {
@@ -124,6 +92,7 @@ class AuthViewModel @Inject constructor(
                         homeRoute = homeRoute,
                     )
                     WorkerIdentityStore.setIdentity(
+                        userId = user.userId,
                         phone = user.phone,
                         label = user.name,
                         role = user.role,
@@ -145,29 +114,22 @@ class AuthViewModel @Inject constructor(
         _workerSession.value = null
         _loginState.value = LoginState.Idle
         _phone.value = ""
-        _pin.value = ""
     }
 
-    private fun routesForAssignment(allowedModules: List<String>, role: String): Set<String> {
+    private fun routesForModules(allowedModules: List<String>, role: String): Set<String> {
         val fromModules = allowedModules
             .map { it.trim().lowercase() }
             .mapNotNull { moduleToRoute(it) }
             .toCollection(linkedSetOf())
 
-        if (fromModules.isNotEmpty()) {
-            return fromModules
-        }
+        if (fromModules.isNotEmpty()) return fromModules
 
-        return roleToRoutes(role)
-    }
-
-    private fun roleToRoutes(role: String): Set<String> {
         return when (role.trim().lowercase().replace('-', '_').replace(' ', '_')) {
             "inwarding", "inwarding_staff" -> linkedSetOf(AppRoute.Inwarding)
             "production", "production_operator" -> linkedSetOf(AppRoute.Production)
             "packing", "packing_staff" -> linkedSetOf(AppRoute.Packing)
             "dispatch", "dispatch_staff" -> linkedSetOf(AppRoute.Dispatch)
-            "factory_supervisor", "tenant_admin", "platform_admin" -> linkedSetOf(
+            "factory_supervisor", "tenant_admin", "platform_admin", "worker" -> linkedSetOf(
                 AppRoute.Inwarding,
                 AppRoute.Production,
                 AppRoute.Packing,

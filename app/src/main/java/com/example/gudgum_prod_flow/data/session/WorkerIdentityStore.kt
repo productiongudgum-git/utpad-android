@@ -10,8 +10,8 @@ object WorkerIdentityStore {
     @Volatile
     var workerRole: String = "Worker"
 
-    fun setIdentity(phone: String, label: String, role: String) {
-        workerId = "worker-$phone"
+    fun setIdentity(userId: String, phone: String, label: String, role: String) {
+        workerId = userId
         workerName = label
         workerRole = role
     }

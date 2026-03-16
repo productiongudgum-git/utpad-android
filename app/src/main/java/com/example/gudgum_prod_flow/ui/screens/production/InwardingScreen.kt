@@ -79,6 +79,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import com.example.gudgum_prod_flow.ui.navigation.AppRoute
 import com.example.gudgum_prod_flow.ui.viewmodels.InwardingViewModel
 import com.example.gudgum_prod_flow.ui.viewmodels.SubmitState
+import com.example.gudgum_prod_flow.ui.viewmodels.Vendor
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -751,12 +752,13 @@ fun InwardingScreen(
     if (showAddIngredientDialog) {
         AddIngredientDialog(
             onDismiss = { showAddIngredientDialog = false },
-            onConfirm = { name, unit ->
+            onConfirm = { name, unit, vendorName ->
                 showAddIngredientDialog = false
-                viewModel.addIngredient(name, unit)
+                viewModel.addIngredient(name, unit, vendorName)
             },
             isSaving = addIngredientState is SubmitState.Loading,
             units = viewModel.units,
+            vendors = vendors,
         )
     }
     if (showAddVendorDialog) {
@@ -775,13 +777,17 @@ fun InwardingScreen(
 @Composable
 private fun AddIngredientDialog(
     onDismiss: () -> Unit,
-    onConfirm: (name: String, unit: String) -> Unit,
+    onConfirm: (name: String, unit: String, vendorName: String) -> Unit,
     isSaving: Boolean,
     units: List<String>,
+    vendors: List<Vendor>,
 ) {
     var name by remember { mutableStateOf("") }
     var selectedUnit by remember { mutableStateOf(units.firstOrNull() ?: "kg") }
     var unitExpanded by remember { mutableStateOf(false) }
+    var vendorName by remember { mutableStateOf("") }
+    var vendorExpanded by remember { mutableStateOf(false) }
+    val filteredVendors = vendors.filter { it.name.contains(vendorName, ignoreCase = true) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -791,7 +797,7 @@ private fun AddIngredientDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Ingredient Name") },
+                    label = { Text("Ingredient Name *") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -803,7 +809,7 @@ private fun AddIngredientDialog(
                         value = selectedUnit,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Unit") },
+                        label = { Text("Unit *") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = unitExpanded) },
                         modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                         singleLine = true,
@@ -820,12 +826,48 @@ private fun AddIngredientDialog(
                         }
                     }
                 }
+                // Vendor field — type to filter existing, or enter a new name
+                ExposedDropdownMenuBox(
+                    expanded = vendorExpanded && filteredVendors.isNotEmpty(),
+                    onExpandedChange = { vendorExpanded = it },
+                ) {
+                    OutlinedTextField(
+                        value = vendorName,
+                        onValueChange = { vendorName = it; vendorExpanded = true },
+                        label = { Text("Vendor / Supplier *") },
+                        placeholder = { Text("Type name or pick from list") },
+                        singleLine = true,
+                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryEditable).fillMaxWidth(),
+                    )
+                    if (filteredVendors.isNotEmpty()) {
+                        ExposedDropdownMenu(
+                            expanded = vendorExpanded,
+                            onDismissRequest = { vendorExpanded = false },
+                        ) {
+                            filteredVendors.forEach { vendor ->
+                                DropdownMenuItem(
+                                    text = { Text(vendor.name) },
+                                    onClick = { vendorName = vendor.name; vendorExpanded = false },
+                                )
+                            }
+                        }
+                    }
+                }
+                if (vendorName.isNotBlank() && vendors.none { it.name.equals(vendorName, ignoreCase = true) }) {
+                    Text(
+                        text = "\"$vendorName\" will be created as a new vendor",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = UtpadTextSecondary,
+                    )
+                }
             }
         },
         confirmButton = {
             Button(
-                onClick = { if (name.isNotBlank()) onConfirm(name, selectedUnit) },
-                enabled = name.isNotBlank() && !isSaving,
+                onClick = {
+                    if (name.isNotBlank() && vendorName.isNotBlank()) onConfirm(name, selectedUnit, vendorName)
+                },
+                enabled = name.isNotBlank() && vendorName.isNotBlank() && !isSaving,
             ) { Text(if (isSaving) "Saving..." else "Add") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },

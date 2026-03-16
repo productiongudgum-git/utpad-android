@@ -2,7 +2,6 @@ package com.example.gudgum_prod_flow.ui.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.gudgum_prod_flow.data.local.entity.CachedBatchEntity
 import com.example.gudgum_prod_flow.data.repository.PackingRepository
 import com.example.gudgum_prod_flow.data.session.WorkerIdentityStore
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -15,7 +14,6 @@ import java.util.Date
 import java.util.Locale
 import javax.inject.Inject
 
-data class SkuItem(val id: String, val name: String)
 data class ShiftSummary(val shift: String, val totalPacked: String, val totalBoxes: String)
 
 @HiltViewModel
@@ -23,39 +21,19 @@ class PackingViewModel @Inject constructor(
     private val repository: PackingRepository,
 ) : ViewModel() {
 
-    private val _openBatches = MutableStateFlow<List<CachedBatchEntity>>(emptyList())
-    val openBatches: StateFlow<List<CachedBatchEntity>> = _openBatches.asStateFlow()
+    private val _batchCode = MutableStateFlow("")
+    val batchCode: StateFlow<String> = _batchCode.asStateFlow()
 
-    // Renamed: entity-typed batch for internal use / submit
-    private val _selectedBatchEntity = MutableStateFlow<CachedBatchEntity?>(null)
-    val selectedBatchEntity: StateFlow<CachedBatchEntity?> = _selectedBatchEntity.asStateFlow()
-
-    // String-typed batch code for the screen dropdown
-    private val _selectedBatch = MutableStateFlow("")
-    val selectedBatch: StateFlow<String> = _selectedBatch.asStateFlow()
-
-    // Plain list of batch codes for the dropdown
-    val batches: List<String>
-        get() = _openBatches.value.map { it.batchCode }
-
-    private val _selectedSku = MutableStateFlow<SkuItem?>(null)
-    val selectedSku: StateFlow<SkuItem?> = _selectedSku.asStateFlow()
-
-    private val _availableSkus = MutableStateFlow<List<SkuItem>>(emptyList())
-    val availableSkus: StateFlow<List<SkuItem>> = _availableSkus.asStateFlow()
-
-    private val _boxesPacked = MutableStateFlow("")
-    val boxesPacked: StateFlow<String> = _boxesPacked.asStateFlow()
-    val qtyPacked: StateFlow<String> = _boxesPacked
+    private val _qtyPacked = MutableStateFlow("")
+    val qtyPacked: StateFlow<String> = _qtyPacked.asStateFlow()
 
     private val _boxesMade = MutableStateFlow("")
     val boxesMade: StateFlow<String> = _boxesMade.asStateFlow()
 
-    private val _sessionDate = MutableStateFlow(
+    private val _packingDate = MutableStateFlow(
         SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
     )
-    val sessionDate: StateFlow<String> = _sessionDate.asStateFlow()
-    val packingDate: StateFlow<String> = _sessionDate
+    val packingDate: StateFlow<String> = _packingDate.asStateFlow()
 
     private val _notes = MutableStateFlow("")
     val notes: StateFlow<String> = _notes.asStateFlow()
@@ -71,63 +49,51 @@ class PackingViewModel @Inject constructor(
 
     private var isOnline: Boolean = true
 
-    init {
-        viewModelScope.launch {
-            repository.getOpenBatches().collect { batches ->
-                _openBatches.value = batches
-            }
-        }
-    }
-
     fun setOnlineStatus(online: Boolean) { isOnline = online }
 
-    fun refreshData() {
-        viewModelScope.launch {
-            repository.refreshOpenBatches()
-        }
-    }
-
-    fun onBatchEntitySelected(batch: CachedBatchEntity) { _selectedBatchEntity.value = batch }
-    fun onBatchSelected(batch: String) {
-        _selectedBatch.value = batch
-        _selectedBatchEntity.value = _openBatches.value.find { it.batchCode == batch }
-    }
-    fun onSkuSelected(sku: SkuItem) { _selectedSku.value = sku }
-    fun onBoxesPackedChanged(value: String) { _boxesPacked.value = value }
-    fun onQtyPackedChanged(value: String) { _boxesPacked.value = value }
+    fun onBatchCodeChanged(value: String) { _batchCode.value = value }
+    fun onQtyPackedChanged(value: String) { _qtyPacked.value = value }
     fun onBoxesMadeChanged(value: String) { _boxesMade.value = value }
-    fun onSessionDateChanged(value: String) { _sessionDate.value = value }
-    fun onPackingDateChanged(value: String) { _sessionDate.value = value }
+    fun onPackingDateChanged(value: String) { _packingDate.value = value }
     fun onNotesChanged(value: String) { _notes.value = value }
 
     fun nextStep() { if (_currentWizardStep.value < 3) _currentWizardStep.value++ }
     fun previousStep() { if (_currentWizardStep.value > 1) _currentWizardStep.value-- }
 
     fun submit() {
-        val batch = _selectedBatchEntity.value ?: run {
-            _submitState.value = SubmitState.Error("Select a batch first")
+        val code = _batchCode.value.trim()
+        if (code.isBlank()) {
+            _submitState.value = SubmitState.Error("Enter or scan a batch code")
             return
         }
-        val boxes = _boxesPacked.value.toIntOrNull()
+        val qty = _qtyPacked.value.toDoubleOrNull()
+        if (qty == null || qty <= 0) {
+            _submitState.value = SubmitState.Error("Enter a valid quantity (> 0)")
+            return
+        }
+        val boxes = _boxesMade.value.toIntOrNull()
         if (boxes == null || boxes <= 0) {
-            _submitState.value = SubmitState.Error("Enter a valid number of boxes (> 0)")
+            _submitState.value = SubmitState.Error("Enter a valid box count (> 0)")
             return
         }
 
         viewModelScope.launch {
             _submitState.value = SubmitState.Loading
-            val result = repository.submitPackingSession(
-                batchCode = batch.batchCode,
-                sessionDate = _sessionDate.value,
+            val result = repository.submitPacking(
+                batchCode = code,
+                quantityKg = qty,
+                boxesCount = boxes,
+                packingDate = _packingDate.value,
                 workerId = WorkerIdentityStore.workerId,
-                boxesPacked = boxes,
                 isOnline = isOnline,
             )
             result.onSuccess {
-                _submitState.value = SubmitState.Success(
-                    if (isOnline) "Packed $boxes boxes for batch ${batch.batchCode}"
-                    else "Packing session saved offline — will sync when connected"
+                _shiftSummary.value = ShiftSummary(
+                    shift = "Current",
+                    totalPacked = qty.toString(),
+                    totalBoxes = boxes.toString(),
                 )
+                _submitState.value = SubmitState.Success("Packed $boxes boxes (${qty}kg) for batch $code")
                 clear()
             }
             result.onFailure { e ->
@@ -137,12 +103,10 @@ class PackingViewModel @Inject constructor(
     }
 
     fun clear() {
-        _selectedBatchEntity.value = null
-        _selectedBatch.value = ""
-        _selectedSku.value = null
-        _boxesPacked.value = ""
+        _batchCode.value = ""
+        _qtyPacked.value = ""
         _boxesMade.value = ""
-        _sessionDate.value = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        _packingDate.value = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
         _notes.value = ""
         _submitState.value = SubmitState.Idle
         _currentWizardStep.value = 1

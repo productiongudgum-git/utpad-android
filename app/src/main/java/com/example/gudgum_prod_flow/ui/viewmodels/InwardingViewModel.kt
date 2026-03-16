@@ -133,12 +133,38 @@ class InwardingViewModel @Inject constructor(
 
     fun setBillPhotoUri(uri: String?) { _billPhotoUri.value = uri }
 
-    fun addIngredient(name: String, unit: String) {
+    fun addIngredient(name: String, unit: String, vendorName: String) {
         viewModelScope.launch {
             _addIngredientState.value = SubmitState.Loading
-            repository.createIngredient(name.trim(), unit)
+            // Resolve vendor: use existing if name matches, else create a new one
+            val existing = _vendors.value.firstOrNull { it.name.equals(vendorName.trim(), ignoreCase = true) }
+            val supplierId: String
+            val supplierName: String
+            if (existing != null) {
+                supplierId = existing.id
+                supplierName = existing.name
+            } else if (vendorName.isNotBlank()) {
+                val result = repository.createSupplier(vendorName.trim())
+                if (result.isFailure) {
+                    _addIngredientState.value = SubmitState.Error(
+                        result.exceptionOrNull()?.message ?: "Failed to create vendor"
+                    )
+                    return@launch
+                }
+                val dto = result.getOrThrow()
+                val newVendor = Vendor(id = dto.id, name = dto.name)
+                _vendors.value = _vendors.value + newVendor
+                supplierId = dto.id
+                supplierName = dto.name
+            } else {
+                _addIngredientState.value = SubmitState.Error("Please specify a vendor")
+                return@launch
+            }
+
+            repository.createIngredient(name.trim(), unit, supplierId, supplierName)
                 .onSuccess { entity ->
                     onIngredientSelected(entity)
+                    onVendorSelected(Vendor(id = supplierId, name = supplierName))
                     _addIngredientState.value = SubmitState.Success("\"${entity.name}\" added")
                 }
                 .onFailure { e ->
@@ -169,6 +195,12 @@ class InwardingViewModel @Inject constructor(
     fun onIngredientSelected(ingredient: CachedIngredientEntity) {
         _selectedIngredient.value = ingredient
         _selectedUnit.value = ingredient.unit // Auto-fill unit from ingredient master
+        // Auto-populate vendor from ingredient's default supplier
+        if (!ingredient.defaultSupplierName.isNullOrBlank()) {
+            val vendor = _vendors.value.firstOrNull { it.name == ingredient.defaultSupplierName }
+                ?: Vendor(id = "auto-${ingredient.id}", name = ingredient.defaultSupplierName)
+            onVendorSelected(vendor)
+        }
     }
 
     fun onQuantityChanged(value: String) { _quantity.value = value }

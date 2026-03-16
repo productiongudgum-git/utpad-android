@@ -99,12 +99,17 @@ class SyncWorker @AssistedInject constructor(
     private suspend fun syncPackingSession(payloadJson: String, batchCode: String, workerId: String): Boolean {
         return try {
             val payload = JSONObject(payloadJson)
-            val resp = SupabaseApiClient.api.insertPackingSession(
-                SubmitPackingSessionRequest(
-                    batchCode = batchCode,
-                    sessionDate = payload.getString("session_date"),
-                    workerId = workerId,
-                    boxesPacked = payload.getInt("boxes_packed"),
+            // Look up batch UUID
+            val batchResp = SupabaseApiClient.api.getGgBatchByCode(batchCode = "eq.$batchCode")
+            val batchId = if (batchResp.isSuccessful) batchResp.body()?.firstOrNull()?.id else null
+                ?: return false
+            val resp = SupabaseApiClient.api.insertGgPacking(
+                GgPackingRequest(
+                    batchId = batchId,
+                    quantityKg = payload.getDouble("quantity_kg"),
+                    boxesCount = payload.getInt("boxes_count"),
+                    packingDate = payload.getString("packing_date"),
+                    recordedBy = workerId,
                 )
             )
             resp.isSuccessful || resp.code() == 201
@@ -114,24 +119,21 @@ class SyncWorker @AssistedInject constructor(
     private suspend fun syncDispatchEvents(payloadJson: String, workerId: String): Boolean {
         return try {
             val payload = JSONObject(payloadJson)
-            val allocationJson = payload.getJSONArray("allocation")
-            var allOk = true
-            for (i in 0 until allocationJson.length()) {
-                val line = allocationJson.getJSONObject(i)
-                val resp = SupabaseApiClient.api.insertDispatchEvent(
-                    SubmitDispatchEventRequest(
-                        batchCode = line.getString("batch_code"),
-                        skuId = payload.getString("sku_id"),
-                        boxesDispatched = line.getInt("boxes_to_take"),
-                        customerName = if (payload.isNull("customer_name")) null else payload.getString("customer_name"),
-                        invoiceNumber = payload.getString("invoice_number"),
-                        dispatchDate = payload.getString("dispatch_date"),
-                        workerId = workerId,
-                    )
+            val batchCode = payload.getString("batch_code")
+            // Look up batch UUID
+            val batchResp = SupabaseApiClient.api.getGgBatchByCode(batchCode = "eq.$batchCode")
+            val batchId = if (batchResp.isSuccessful) batchResp.body()?.firstOrNull()?.id else null
+                ?: return false
+            val resp = SupabaseApiClient.api.insertGgDispatch(
+                GgDispatchRequest(
+                    batchId = batchId,
+                    customerId = payload.getString("customer_id"),
+                    quantityDispatched = payload.getDouble("quantity_dispatched"),
+                    dispatchDate = payload.getString("dispatch_date"),
+                    recordedBy = workerId,
                 )
-                if (!resp.isSuccessful && resp.code() != 201) allOk = false
-            }
-            allOk
+            )
+            resp.isSuccessful || resp.code() == 201
         } catch (e: Exception) { false }
     }
 

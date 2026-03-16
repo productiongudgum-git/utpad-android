@@ -6,6 +6,7 @@ import com.example.gudgum_prod_flow.data.local.entity.CachedIngredientEntity
 import com.example.gudgum_prod_flow.data.local.entity.PendingOperationEventEntity
 import com.example.gudgum_prod_flow.data.remote.api.SupabaseApiClient
 import com.example.gudgum_prod_flow.data.remote.dto.CreateIngredientRequest
+import com.example.gudgum_prod_flow.data.remote.dto.CreateIngredientSupplierLinkRequest
 import com.example.gudgum_prod_flow.data.remote.dto.CreateSupplierRequest
 import com.example.gudgum_prod_flow.data.remote.dto.IngredientDto
 import com.example.gudgum_prod_flow.data.remote.dto.SubmitInwardEventRequest
@@ -36,7 +37,13 @@ class InwardingRepository @Inject constructor(
                 val dtos = response.body() ?: emptyList()
                 ingredientDao.deleteAll()
                 ingredientDao.insertAll(dtos.map {
-                    CachedIngredientEntity(id = it.id, name = it.name, unit = it.unit, active = it.active)
+                    CachedIngredientEntity(
+                        id = it.id,
+                        name = it.name,
+                        unit = it.unit,
+                        active = it.active,
+                        defaultSupplierName = it.defaultSupplierName,
+                    )
                 })
             } else {
                 error("Ingredient refresh failed: ${response.code()}")
@@ -52,7 +59,8 @@ class InwardingRepository @Inject constructor(
             runCatching {
                 val response = api.insertInwardEvent(request)
                 if (!response.isSuccessful && response.code() != 201) {
-                    error("Inward event insert failed: ${response.code()}")
+                    val body = response.errorBody()?.string() ?: ""
+                    error("Inward event insert failed: ${response.code()} | $body")
                 }
             }
         } else {
@@ -134,14 +142,46 @@ class InwardingRepository @Inject constructor(
         }
     }
 
-    suspend fun createIngredient(name: String, unit: String): Result<CachedIngredientEntity> = withContext(Dispatchers.IO) {
+    suspend fun createIngredient(
+        name: String,
+        unit: String,
+        supplierId: String? = null,
+        supplierName: String? = null,
+    ): Result<CachedIngredientEntity> = withContext(Dispatchers.IO) {
         runCatching {
             val id = "ing-${System.currentTimeMillis()}"
-            val response = api.insertIngredient(CreateIngredientRequest(id = id, name = name, unit = unit))
+            val response = api.insertIngredient(
+                CreateIngredientRequest(
+                    id = id,
+                    name = name,
+                    unit = unit,
+                    defaultSupplierId = supplierId,
+                    defaultSupplierName = supplierName,
+                )
+            )
             if (!response.isSuccessful) error("Failed to create ingredient: ${response.code()}")
-            val dto = response.body()?.firstOrNull() ?: IngredientDto(id = id, name = name, unit = unit)
-            val entity = CachedIngredientEntity(id = dto.id, name = dto.name, unit = dto.unit, active = dto.active)
+            val dto = response.body()?.firstOrNull()
+                ?: IngredientDto(id = id, name = name, unit = unit, defaultSupplierId = supplierId, defaultSupplierName = supplierName)
+            val entity = CachedIngredientEntity(
+                id = dto.id,
+                name = dto.name,
+                unit = dto.unit,
+                active = dto.active,
+                defaultSupplierName = dto.defaultSupplierName,
+            )
             ingredientDao.insertAll(listOf(entity))
+            // Also record the link in ingredient_suppliers junction table
+            if (supplierId != null) {
+                val linkId = "isl-${System.currentTimeMillis()}"
+                api.insertIngredientSupplierLink(
+                    CreateIngredientSupplierLinkRequest(
+                        id = linkId,
+                        ingredientId = id,
+                        supplierId = supplierId,
+                        isDefault = true,
+                    )
+                )
+            }
             entity
         }
     }

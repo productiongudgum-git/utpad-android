@@ -7,11 +7,13 @@ import javax.inject.Inject
 class LoginUseCase @Inject constructor(
     private val authRepository: AuthRepository
 ) {
-    suspend operator fun invoke(phone: String, pin: String): AuthResult {
+    suspend operator fun invoke(phone: String): AuthResult {
         if (phone.isBlank()) {
             return AuthResult.Error("Phone is required.")
         }
-
-        return authRepository.login(phone, pin)
+        if (!phone.matches(Regex("^[6-9]\\d{9}$"))) {
+            return AuthResult.Error("Enter a valid 10-digit Indian mobile number.")
+        }
+        return authRepository.login(phone)
     }
 }

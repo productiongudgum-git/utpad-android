@@ -1,5 +1,6 @@
 package com.example.gudgum_prod_flow.ui.screens.production
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -20,11 +20,18 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -33,14 +40,16 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -50,20 +59,20 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.gudgum_prod_flow.ui.components.BarcodeScannerButton
 import com.example.gudgum_prod_flow.ui.navigation.AppRoute
+import com.example.gudgum_prod_flow.ui.theme.UtpadBackground
+import com.example.gudgum_prod_flow.ui.theme.UtpadError
+import com.example.gudgum_prod_flow.ui.theme.UtpadOutline
+import com.example.gudgum_prod_flow.ui.theme.UtpadPrimary
+import com.example.gudgum_prod_flow.ui.theme.UtpadSuccess
+import com.example.gudgum_prod_flow.ui.theme.UtpadSurface
+import com.example.gudgum_prod_flow.ui.theme.UtpadTextPrimary
+import com.example.gudgum_prod_flow.ui.theme.UtpadTextSecondary
 import com.example.gudgum_prod_flow.ui.viewmodels.DispatchViewModel
 import com.example.gudgum_prod_flow.ui.viewmodels.SubmitState
 import kotlinx.coroutines.launch
-import com.example.gudgum_prod_flow.ui.theme.UtpadPrimary
-import com.example.gudgum_prod_flow.ui.theme.UtpadSuccess
-import com.example.gudgum_prod_flow.ui.theme.UtpadError
-import com.example.gudgum_prod_flow.ui.theme.UtpadOutline
-import com.example.gudgum_prod_flow.ui.theme.UtpadTextPrimary
-import com.example.gudgum_prod_flow.ui.theme.UtpadTextSecondary
-import com.example.gudgum_prod_flow.ui.theme.UtpadBackground
-import com.example.gudgum_prod_flow.ui.theme.UtpadSurface
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.ui.draw.shadow
-import androidx.compose.foundation.background
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,16 +83,15 @@ fun DispatchScreen(
     onNavigateToRoute: (String) -> Unit,
     viewModel: DispatchViewModel = hiltViewModel(),
 ) {
-    val currentStock by viewModel.currentStock.collectAsState()
     val batchCode by viewModel.batchCode.collectAsState()
-    val qtyTakenFromPacking by viewModel.qtyTakenFromPacking.collectAsState()
     val qtyDispatched by viewModel.qtyDispatched.collectAsState()
-    val remainingBalance by viewModel.remainingBalance.collectAsState()
-    val isPending by viewModel.isPending.collectAsState()
+    val dispatchDate by viewModel.dispatchDate.collectAsState()
+    val customers by viewModel.customers.collectAsState()
+    val selectedCustomerId by viewModel.selectedCustomerId.collectAsState()
+    val selectedCustomerName by viewModel.selectedCustomerName.collectAsState()
+    val customersLoading by viewModel.customersLoading.collectAsState()
     val submitState by viewModel.submitState.collectAsState()
     val currentStep by viewModel.currentWizardStep.collectAsState()
-    val destination by viewModel.destination.collectAsState()
-    val vehicleNumber by viewModel.vehicleNumber.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -110,11 +118,7 @@ fun DispatchScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = UtpadTextPrimary
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = UtpadTextPrimary)
                     }
                 },
                 actions = {
@@ -122,9 +126,7 @@ fun DispatchScreen(
                         Text("Logout", color = UtpadPrimary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = UtpadBackground
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = UtpadBackground)
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -148,54 +150,13 @@ fun DispatchScreen(
                     onNavigateToRoute = onNavigateToRoute,
                 )
 
-                // Current Stock Card (always visible)
-                Card(
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = UtpadPrimary.copy(alpha = 0.1f)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        Text(
-                            text = "CURRENT STOCK",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = UtpadPrimary,
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Available in Packing Floor",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = UtpadTextPrimary,
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(
-                            verticalAlignment = Alignment.Bottom,
-                        ) {
-                            Text(
-                                text = "%,d".format(currentStock),
-                                style = MaterialTheme.typography.displaySmall.copy(
-                                    fontSize = 32.sp,
-                                    fontWeight = FontWeight.Bold,
-                                ),
-                                color = UtpadPrimary,
-                            )
-                            Text(
-                                text = " units",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = UtpadTextPrimary,
-                                modifier = Modifier.padding(bottom = 4.dp, start = 4.dp),
-                            )
-                        }
-                    }
-                }
-
                 WizardProgressBar(
                     currentStep = currentStep,
                     totalSteps = 3,
-                    stepTitle = when(currentStep) {
+                    stepTitle = when (currentStep) {
                         1 -> "Batch Code"
-                        2 -> "Quantities"
-                        else -> "Vehicle & Review"
+                        2 -> "Quantity"
+                        else -> "Customer & Date"
                     }
                 )
 
@@ -209,13 +170,6 @@ fun DispatchScreen(
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Text(
-                                    text = "Batch Details",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = UtpadTextPrimary
-                                )
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Text(
                                     text = "BATCH CODE",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = UtpadTextSecondary,
@@ -228,7 +182,7 @@ fun DispatchScreen(
                                 ) {
                                     OutlinedTextField(
                                         value = batchCode,
-                                        onValueChange = { viewModel.onBatchCodeChanged(it) },
+                                        onValueChange = viewModel::onBatchCodeChanged,
                                         placeholder = { Text("Scan or enter code", color = UtpadTextSecondary) },
                                         singleLine = true,
                                         modifier = Modifier.weight(1f),
@@ -257,7 +211,7 @@ fun DispatchScreen(
                         }
                     }
 
-                    // ── Step 2: Dispatch Quantities ──
+                    // ── Step 2: Quantity Dispatched ──
                     2 -> {
                         Card(
                             shape = RoundedCornerShape(24.dp),
@@ -269,70 +223,32 @@ fun DispatchScreen(
                                 verticalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
                                 Text(
-                                    text = "Dispatch Entry",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = UtpadTextPrimary
+                                    text = "QUANTITY DISPATCHED",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = UtpadTextSecondary,
+                                    fontWeight = FontWeight.SemiBold
                                 )
-
-                                // Qty Taken from Packing
-                                Column {
-                                    Text(
-                                        text = "QTY TAKEN FROM PACKING",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = UtpadTextSecondary,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    OutlinedTextField(
-                                        value = qtyTakenFromPacking,
-                                        onValueChange = { viewModel.onQtyTakenChanged(it) },
-                                        placeholder = { Text("0", color = UtpadTextSecondary) },
-                                        suffix = { Text("kg", color = UtpadTextSecondary) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = UtpadPrimary,
-                                            unfocusedBorderColor = UtpadOutline,
-                                            focusedContainerColor = UtpadBackground,
-                                            unfocusedContainerColor = UtpadSurface,
-                                        ),
-                                        shape = RoundedCornerShape(16.dp),
-                                    )
-                                }
-
-                                // Qty to Dispatch
-                                Column {
-                                    Text(
-                                        text = "QTY UTILIZED / DISPATCHED",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = UtpadTextSecondary,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    OutlinedTextField(
-                                        value = qtyDispatched,
-                                        onValueChange = { viewModel.onQtyDispatchedChanged(it) },
-                                        placeholder = { Text("0", color = UtpadTextSecondary) },
-                                        suffix = { Text("kg", color = UtpadTextSecondary) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = UtpadPrimary,
-                                            unfocusedBorderColor = UtpadOutline,
-                                            focusedContainerColor = UtpadBackground,
-                                            unfocusedContainerColor = UtpadSurface,
-                                        ),
-                                        shape = RoundedCornerShape(16.dp),
-                                    )
-                                }
+                                OutlinedTextField(
+                                    value = qtyDispatched,
+                                    onValueChange = viewModel::onQtyDispatchedChanged,
+                                    placeholder = { Text("0", color = UtpadTextSecondary) },
+                                    suffix = { Text("kg", color = UtpadTextSecondary) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = UtpadPrimary,
+                                        unfocusedBorderColor = UtpadOutline,
+                                        focusedContainerColor = UtpadBackground,
+                                        unfocusedContainerColor = UtpadSurface,
+                                    ),
+                                    shape = RoundedCornerShape(16.dp),
+                                )
                             }
                         }
                     }
 
-                    // ── Step 3: Destination, Vehicle & Review ──
+                    // ── Step 3: Customer & Dispatch Date ──
                     3 -> {
                         Card(
                             shape = RoundedCornerShape(24.dp),
@@ -343,143 +259,164 @@ fun DispatchScreen(
                                 modifier = Modifier.padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
-                                Text(
-                                    text = "Shipping Details",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = UtpadTextPrimary
-                                )
-
-                                // Destination
+                                // Customer Dropdown
                                 Column {
                                     Text(
-                                        text = "DESTINATION",
+                                        text = "CUSTOMER",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = UtpadTextSecondary,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
-                                    OutlinedTextField(
-                                        value = destination,
-                                        onValueChange = { viewModel.onDestinationChanged(it) },
-                                        placeholder = { Text("Enter destination address", color = UtpadTextSecondary) },
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = UtpadPrimary,
-                                            unfocusedBorderColor = UtpadOutline,
-                                            focusedContainerColor = UtpadBackground,
-                                            unfocusedContainerColor = UtpadSurface,
-                                        ),
-                                        shape = RoundedCornerShape(16.dp),
-                                    )
+
+                                    if (customersLoading) {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            CircularProgressIndicator(modifier = Modifier.height(20.dp).width(20.dp), strokeWidth = 2.dp, color = UtpadPrimary)
+                                            Text("Loading customers...", color = UtpadTextSecondary, style = MaterialTheme.typography.bodySmall)
+                                        }
+                                    } else {
+                                        var customerExpanded by remember { mutableStateOf(false) }
+                                        ExposedDropdownMenuBox(
+                                            expanded = customerExpanded,
+                                            onExpandedChange = { customerExpanded = it },
+                                        ) {
+                                            OutlinedTextField(
+                                                value = selectedCustomerName,
+                                                onValueChange = {},
+                                                readOnly = true,
+                                                placeholder = { Text("Select customer...", color = UtpadTextSecondary) },
+                                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = customerExpanded) },
+                                                modifier = Modifier
+                                                    .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                                                    .fillMaxWidth(),
+                                                singleLine = true,
+                                                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                                    focusedBorderColor = UtpadPrimary,
+                                                    unfocusedBorderColor = UtpadOutline,
+                                                    focusedContainerColor = UtpadBackground,
+                                                    unfocusedContainerColor = UtpadSurface,
+                                                ),
+                                                shape = RoundedCornerShape(16.dp),
+                                            )
+                                            ExposedDropdownMenu(
+                                                expanded = customerExpanded,
+                                                onDismissRequest = { customerExpanded = false },
+                                            ) {
+                                                if (customers.isEmpty()) {
+                                                    DropdownMenuItem(
+                                                        text = { Text("No customers found", color = UtpadTextSecondary) },
+                                                        onClick = { customerExpanded = false },
+                                                        enabled = false,
+                                                    )
+                                                } else {
+                                                    customers.forEach { customer ->
+                                                        DropdownMenuItem(
+                                                            text = { Text(customer.name) },
+                                                            onClick = {
+                                                                viewModel.onCustomerSelected(customer.id, customer.name)
+                                                                customerExpanded = false
+                                                            },
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
 
-                                // Vehicle Number
+                                // Dispatch Date
                                 Column {
                                     Text(
-                                        text = "VEHICLE NUMBER",
+                                        text = "DISPATCH DATE",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = UtpadTextSecondary,
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Spacer(modifier = Modifier.height(8.dp))
-                                    OutlinedTextField(
-                                        value = vehicleNumber,
-                                        onValueChange = { viewModel.onVehicleNumberChanged(it) },
-                                        placeholder = { Text("e.g. MH-12-AB-1234", color = UtpadTextSecondary) },
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = UtpadPrimary,
-                                            unfocusedBorderColor = UtpadOutline,
-                                            focusedContainerColor = UtpadBackground,
-                                            unfocusedContainerColor = UtpadSurface,
-                                        ),
-                                        shape = RoundedCornerShape(16.dp),
-                                    )
+                                    var showDatePicker by remember { mutableStateOf(false) }
+
+                                    Box(modifier = Modifier.fillMaxWidth()) {
+                                        OutlinedTextField(
+                                            value = dispatchDate,
+                                            onValueChange = {},
+                                            placeholder = { Text("Select Date", color = UtpadTextSecondary) },
+                                            singleLine = true,
+                                            readOnly = true,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = UtpadPrimary,
+                                                unfocusedBorderColor = UtpadOutline,
+                                                focusedContainerColor = UtpadBackground,
+                                                unfocusedContainerColor = UtpadSurface,
+                                            ),
+                                            shape = RoundedCornerShape(16.dp),
+                                        )
+                                        Surface(
+                                            modifier = Modifier.matchParentSize(),
+                                            color = androidx.compose.ui.graphics.Color.Transparent,
+                                            onClick = { showDatePicker = true }
+                                        ) {}
+                                    }
+
+                                    if (showDatePicker) {
+                                        val datePickerState = rememberDatePickerState()
+                                        DatePickerDialog(
+                                            onDismissRequest = { showDatePicker = false },
+                                            confirmButton = {
+                                                TextButton(onClick = {
+                                                    val selectedMillis = datePickerState.selectedDateMillis
+                                                    if (selectedMillis != null) {
+                                                        val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                                                        viewModel.onDispatchDateChanged(formatter.format(Date(selectedMillis)))
+                                                    }
+                                                    showDatePicker = false
+                                                }) { Text("OK", color = UtpadPrimary) }
+                                            },
+                                            dismissButton = {
+                                                TextButton(onClick = { showDatePicker = false }) {
+                                                    Text("Cancel", color = UtpadTextSecondary)
+                                                }
+                                            }
+                                        ) {
+                                            DatePicker(state = datePickerState)
+                                        }
+                                    }
                                 }
                             }
                         }
 
-                        // Status / Balance Review Card
+                        // Review Card
                         Card(
                             shape = RoundedCornerShape(24.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = UtpadBackground,
-                            ),
+                            colors = CardDefaults.cardColors(containerColor = UtpadBackground),
                             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        text = "STATUS RESULT",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = UtpadTextSecondary,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    val statusColor = if (isPending) {
-                                        UtpadPrimary
-                                    } else {
-                                        UtpadSuccess
-                                    }
-                                    val statusContainerColor = if (isPending) {
-                                        UtpadPrimary.copy(alpha = 0.1f)
-                                    } else {
-                                        UtpadSuccess.copy(alpha = 0.1f)
-                                    }
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = statusContainerColor,
-                                    ) {
-                                        Text(
-                                            text = if (isPending) "PENDING" else "DISPATCHED",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = statusColor,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                        )
-                                    }
-                                }
-
+                                Text(
+                                    text = "DISPATCH SUMMARY",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = UtpadTextSecondary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
                                 Spacer(modifier = Modifier.height(8.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.Bottom,
-                                ) {
-                                    Text(
-                                        text = "REMAINING BALANCE",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = UtpadTextSecondary,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Row(verticalAlignment = Alignment.Bottom) {
-                                        val balanceColor = if (remainingBalance < 100) {
-                                            UtpadError
-                                        } else {
-                                            UtpadTextPrimary
-                                        }
-                                        Text(
-                                            text = "%,d".format(remainingBalance),
-                                            style = MaterialTheme.typography.headlineSmall.copy(
-                                                fontWeight = FontWeight.Bold,
-                                            ),
-                                            color = balanceColor,
-                                        )
-                                        Text(
-                                            text = " kg",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = UtpadTextSecondary,
-                                            modifier = Modifier.padding(bottom = 2.dp),
-                                        )
-                                    }
-                                }
+                                Text(
+                                    text = "Batch: $batchCode",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = UtpadTextPrimary,
+                                )
+                                Text(
+                                    text = "Customer: ${selectedCustomerName.ifBlank { "—" }}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = UtpadTextPrimary,
+                                )
+                                Text(
+                                    text = "Quantity: ${qtyDispatched}kg on $dispatchDate",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = UtpadTextPrimary,
+                                )
                             }
                         }
                     }
@@ -502,38 +439,22 @@ fun DispatchScreen(
                     ) {
                         OutlinedButton(
                             onClick = {
-                                if (currentStep > 1) {
-                                    viewModel.previousStep()
-                                } else {
-                                    viewModel.reset()
-                                }
+                                if (currentStep > 1) viewModel.previousStep() else viewModel.reset()
                             },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp),
+                            modifier = Modifier.weight(1f).height(56.dp),
                             shape = RoundedCornerShape(20.dp),
                             colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
                                 contentColor = UtpadTextPrimary
                             )
                         ) {
-                            if (currentStep > 1) {
-                                Text("Back", fontWeight = FontWeight.Bold)
-                            } else {
-                                Text("Reset", fontWeight = FontWeight.Bold)
-                            }
+                            Text(if (currentStep > 1) "Back" else "Reset", fontWeight = FontWeight.Bold)
                         }
 
                         Button(
                             onClick = {
-                                if (currentStep < 3) {
-                                    viewModel.nextStep()
-                                } else {
-                                    viewModel.submit()
-                                }
+                                if (currentStep < 3) viewModel.nextStep() else viewModel.submit()
                             },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp),
+                            modifier = Modifier.weight(1f).height(56.dp),
                             shape = RoundedCornerShape(20.dp),
                             colors = androidx.compose.material3.ButtonDefaults.buttonColors(
                                 containerColor = UtpadPrimary,
@@ -541,11 +462,10 @@ fun DispatchScreen(
                             ),
                             enabled = submitState !is SubmitState.Loading,
                         ) {
-                            if (currentStep < 3) {
-                                Text("Continue", fontWeight = FontWeight.Bold)
-                            } else {
-                                Text("Confirm Dispatch", fontWeight = FontWeight.Bold)
-                            }
+                            Text(
+                                if (currentStep < 3) "Continue" else "Confirm Dispatch",
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                     if (AppRoute.Inwarding in allowedRoutes) {
@@ -572,7 +492,7 @@ private fun WizardProgressBar(
 ) {
     val progress = currentStep.toFloat() / totalSteps.toFloat()
     val percentage = (progress * 100).toInt()
-    
+
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -604,8 +524,7 @@ private fun WizardProgressBar(
                 fontWeight = FontWeight.SemiBold
             )
         }
-        
-        // Progress Bar Line
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()

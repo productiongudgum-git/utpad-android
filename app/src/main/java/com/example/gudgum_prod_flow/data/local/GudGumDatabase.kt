@@ -13,7 +13,7 @@ import com.example.gudgum_prod_flow.data.local.entity.*
         CachedBatchEntity::class,
         CachedIngredientEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class GudGumDatabase : RoomDatabase() {

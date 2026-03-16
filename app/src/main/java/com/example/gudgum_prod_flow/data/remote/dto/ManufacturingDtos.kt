@@ -22,6 +22,8 @@ data class IngredientDto(
     val name: String,
     val unit: String,
     val active: Boolean = true,
+    @SerialName("default_supplier_id") val defaultSupplierId: String? = null,
+    @SerialName("default_supplier_name") val defaultSupplierName: String? = null,
 )
 
 // ── Recipe Lines (BOM) ──────────────────────────────────────────
@@ -142,6 +144,7 @@ data class SubmitInwardEventRequest(
     @SerialName("expiry_date") val expiryDate: String? = null,
     @SerialName("lot_ref") val lotRef: String? = null,
     val supplier: String? = null,
+    @SerialName("vendor_id") val vendorId: String? = null,
     @SerialName("worker_id") val workerId: String,
 )
 
@@ -169,6 +172,16 @@ data class CreateIngredientRequest(
     val name: String,
     val unit: String,
     val active: Boolean = true,
+    @SerialName("default_supplier_id") val defaultSupplierId: String? = null,
+    @SerialName("default_supplier_name") val defaultSupplierName: String? = null,
+)
+
+@Serializable
+data class CreateIngredientSupplierLinkRequest(
+    val id: String,
+    @SerialName("ingredient_id") val ingredientId: String,
+    @SerialName("supplier_id") val supplierId: String,
+    @SerialName("is_default") val isDefault: Boolean = true,
 )
 
 // ── Returns ─────────────────────────────────────────────────────
@@ -190,4 +203,145 @@ data class DispatchedBatchDto(
     @SerialName("sku_name") val skuName: String? = null,
     @SerialName("boxes_dispatched") val boxesDispatched: Int,
     @SerialName("dispatch_date") val dispatchDate: String,
+)
+
+// ── Gud Gum Tables (gg_ prefix) ─────────────────────────────────
+@Serializable
+data class GgUserDto(
+    val id: String,
+    @SerialName("mobile_number") val mobileNumber: String,
+    val name: String,
+    val role: String,
+    val modules: List<String> = emptyList(),
+    val active: Boolean = true,
+)
+
+@Serializable
+data class GgCustomerDto(
+    val id: String,
+    val name: String,
+    @SerialName("contact_person") val contactPerson: String? = null,
+    val phone: String? = null,
+)
+
+@Serializable
+data class GgBatchDto(
+    val id: String,
+    @SerialName("batch_code") val batchCode: String,
+    val status: String = "open",
+)
+
+@Serializable
+data class GgPackingRequest(
+    @SerialName("batch_id") val batchId: String,
+    @SerialName("quantity_kg") val quantityKg: Double,
+    @SerialName("boxes_count") val boxesCount: Int,
+    @SerialName("packing_date") val packingDate: String,
+    @SerialName("recorded_by") val recordedBy: String,
+)
+
+@Serializable
+data class GgDispatchRequest(
+    @SerialName("batch_id") val batchId: String,
+    @SerialName("customer_id") val customerId: String,
+    @SerialName("quantity_dispatched") val quantityDispatched: Double,
+    @SerialName("dispatch_date") val dispatchDate: String,
+    @SerialName("recorded_by") val recordedBy: String,
+)
+
+// ── Gud Gum Production DTOs ──────────────────────────────────────
+@Serializable
+data class GgFlavorDto(
+    val id: String,
+    val name: String,
+    val code: String,
+    val active: Boolean = true,
+)
+
+@Serializable
+data class GgIngredientDto(
+    val id: String,
+    val name: String,
+    val unit: String,
+    val active: Boolean = true,
+    @SerialName("default_vendor_id") val defaultVendorId: String? = null,
+)
+
+@Serializable
+data class GgRecipeLineDto(
+    val id: String,
+    @SerialName("flavor_id") val flavorId: String,
+    @SerialName("ingredient_id") val ingredientId: String,
+    @SerialName("qty_kg") val qtyKg: Double,
+    val ingredient: GgIngredientDto? = null,
+)
+
+@Serializable
+data class GgVendorDto(
+    val id: String,
+    val name: String,
+    @SerialName("contact_phone") val contactPhone: String? = null,
+    val active: Boolean = true,
+)
+
+@Serializable
+data class GgBatchInsertRequest(
+    @SerialName("batch_code") val batchCode: String,
+    @SerialName("flavor_id") val flavorId: String,
+    @SerialName("planned_qty_kg") val plannedQtyKg: Double? = null,
+    @SerialName("production_date") val productionDate: String,
+    @SerialName("created_by") val createdBy: String,
+    val status: String = "open",
+)
+
+@Serializable
+data class GgProductionRecordRequest(
+    @SerialName("batch_id") val batchId: String,
+    @SerialName("ingredient_id") val ingredientId: String,
+    @SerialName("planned_qty") val plannedQty: Double,
+    @SerialName("actual_qty") val actualQty: Double,
+    @SerialName("recorded_by") val recordedBy: String,
+)
+
+@Serializable
+data class GgInwardingRequest(
+    @SerialName("ingredient_id") val ingredientId: String,
+    val qty: Double,
+    val unit: String,
+    @SerialName("vendor_id") val vendorId: String? = null,
+    @SerialName("inward_date") val inwardDate: String,
+    @SerialName("expiry_date") val expiryDate: String? = null,
+    @SerialName("lot_ref") val lotRef: String? = null,
+    @SerialName("recorded_by") val recordedBy: String,
+)
+
+@Serializable
+data class GgReturnRequest(
+    @SerialName("batch_id") val batchId: String,
+    @SerialName("qty_returned") val qtyReturned: Int,
+    val reason: String? = null,
+    @SerialName("return_date") val returnDate: String,
+    @SerialName("recorded_by") val recordedBy: String,
+)
+
+@Serializable
+data class GgVendorInsertRequest(
+    val name: String,
+    @SerialName("contact_phone") val contactPhone: String? = null,
+)
+
+@Serializable
+data class GgIngredientInsertRequest(
+    val name: String,
+    val unit: String,
+    @SerialName("default_vendor_id") val defaultVendorId: String? = null,
+)
+
+@Serializable
+data class GgDispatchSummaryDto(
+    val id: String,
+    @SerialName("batch_id") val batchId: String,
+    @SerialName("dispatch_date") val dispatchDate: String,
+    @SerialName("quantity_dispatched") val quantityDispatched: Double,
+    val batch: GgBatchDto? = null,
 )
