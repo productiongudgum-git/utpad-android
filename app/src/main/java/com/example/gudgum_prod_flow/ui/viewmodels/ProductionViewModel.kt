@@ -7,6 +7,7 @@ import com.example.gudgum_prod_flow.data.local.entity.CachedRecipeLineEntity
 import com.example.gudgum_prod_flow.data.remote.dto.SubmitBatchIngredientRequest
 import com.example.gudgum_prod_flow.data.repository.ProductionRepository
 import com.example.gudgum_prod_flow.data.session.WorkerIdentityStore
+import com.example.gudgum_prod_flow.util.BatchCodeGenerator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -44,11 +45,8 @@ class ProductionViewModel @Inject constructor(
     private val _selectedFlavor = MutableStateFlow<FlavorProfile?>(null)
     val selectedFlavor: StateFlow<FlavorProfile?> = _selectedFlavor.asStateFlow()
 
-    private val _batchCode = MutableStateFlow("")
+    private val _batchCode = MutableStateFlow(BatchCodeGenerator.generate())
     val batchCode: StateFlow<String> = _batchCode.asStateFlow()
-
-    private val _batchCodeLoading = MutableStateFlow(false)
-    val batchCodeLoading: StateFlow<Boolean> = _batchCodeLoading.asStateFlow()
 
     private val _manufacturingDate = MutableStateFlow(
         SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
@@ -130,7 +128,6 @@ class ProductionViewModel @Inject constructor(
 
     fun onFlavorSelected(flavor: FlavorProfile) {
         _selectedFlavor.value = flavor
-        _batchCode.value = "" // Reset until generated
         _recipe.value = emptyList()
 
         // Load recipe lines using flavorId (gg_recipes uses flavor_id, not recipe_id)
@@ -153,24 +150,6 @@ class ProductionViewModel @Inject constructor(
                     )
                 }
             }
-        }
-
-        // Generate batch code if online
-        if (isOnline) {
-            viewModelScope.launch {
-                _batchCodeLoading.value = true
-                val dateStr = _manufacturingDate.value
-                val result = repository.generateBatchCode(skuCode = flavor.code, date = dateStr)
-                result.onSuccess { code -> _batchCode.value = code }
-                result.onFailure {
-                    _submitState.value = SubmitState.Error(
-                        "Could not generate batch code — check network connection"
-                    )
-                }
-                _batchCodeLoading.value = false
-            }
-        } else {
-            _submitState.value = SubmitState.Error("Network required to generate batch code")
         }
     }
 
@@ -198,10 +177,7 @@ class ProductionViewModel @Inject constructor(
             return
         }
         if (batchCode.isBlank()) {
-            _submitState.value = SubmitState.Error(
-                if (isOnline) "Batch code not yet generated — wait a moment"
-                else "Network required to generate batch code"
-            )
+            _submitState.value = SubmitState.Error("Batch code unavailable. Restart the app.")
             return
         }
         if (_recipe.value.isEmpty()) {
@@ -256,7 +232,7 @@ class ProductionViewModel @Inject constructor(
 
     fun reset() {
         _selectedFlavor.value = null
-        _batchCode.value = ""
+        _batchCode.value = BatchCodeGenerator.generate()
         _recipe.value = emptyList()
         _plannedYield.value = null
         _actualOutput.value = ""

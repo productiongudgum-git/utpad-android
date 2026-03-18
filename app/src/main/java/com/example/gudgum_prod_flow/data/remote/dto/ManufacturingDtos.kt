@@ -38,12 +38,6 @@ data class RecipeLineDto(
 
 // ── Production ──────────────────────────────────────────────────
 @Serializable
-data class BatchCodeRequest(
-    @SerialName("p_sku_code") val skuCode: String,
-    @SerialName("p_date") val date: String, // YYYY-MM-DD
-)
-
-@Serializable
 data class SubmitProductionBatchRequest(
     @SerialName("batch_code") val batchCode: String,
     @SerialName("sku_id") val skuId: String,

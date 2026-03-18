@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.gudgum_prod_flow.data.remote.dto.GgCustomerDto
 import com.example.gudgum_prod_flow.data.repository.DispatchRepository
 import com.example.gudgum_prod_flow.data.session.WorkerIdentityStore
+import com.example.gudgum_prod_flow.util.BatchCodeGenerator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,7 +21,7 @@ class DispatchViewModel @Inject constructor(
     private val repository: DispatchRepository,
 ) : ViewModel() {
 
-    private val _batchCode = MutableStateFlow("")
+    private val _batchCode = MutableStateFlow(BatchCodeGenerator.generate())
     val batchCode: StateFlow<String> = _batchCode.asStateFlow()
 
     private val _qtyDispatched = MutableStateFlow("")
@@ -68,7 +69,6 @@ class DispatchViewModel @Inject constructor(
         }
     }
 
-    fun onBatchCodeChanged(value: String) { _batchCode.value = value }
     fun onQtyDispatchedChanged(value: String) { _qtyDispatched.value = value }
     fun onDispatchDateChanged(value: String) { _dispatchDate.value = value }
 
@@ -82,10 +82,6 @@ class DispatchViewModel @Inject constructor(
 
     fun submit() {
         val code = _batchCode.value.trim()
-        if (code.isBlank()) {
-            _submitState.value = SubmitState.Error("Enter or scan a batch code")
-            return
-        }
         val qty = _qtyDispatched.value.toDoubleOrNull()
         if (qty == null || qty <= 0) {
             _submitState.value = SubmitState.Error("Enter a valid dispatch quantity (> 0)")
@@ -121,7 +117,7 @@ class DispatchViewModel @Inject constructor(
     }
 
     fun reset() {
-        _batchCode.value = ""
+        _batchCode.value = BatchCodeGenerator.generate()
         _qtyDispatched.value = ""
         _dispatchDate.value = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
         _selectedCustomerId.value = ""

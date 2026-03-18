@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.gudgum_prod_flow.data.repository.PackingRepository
 import com.example.gudgum_prod_flow.data.session.WorkerIdentityStore
+import com.example.gudgum_prod_flow.util.BatchCodeGenerator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,7 +22,7 @@ class PackingViewModel @Inject constructor(
     private val repository: PackingRepository,
 ) : ViewModel() {
 
-    private val _batchCode = MutableStateFlow("")
+    private val _batchCode = MutableStateFlow(BatchCodeGenerator.generate())
     val batchCode: StateFlow<String> = _batchCode.asStateFlow()
 
     private val _qtyPacked = MutableStateFlow("")
@@ -50,7 +51,6 @@ class PackingViewModel @Inject constructor(
 
     fun setOnlineStatus(online: Boolean) { isOnline = online }
 
-    fun onBatchCodeChanged(value: String) { _batchCode.value = value }
     fun onQtyPackedChanged(value: String) { _qtyPacked.value = value }
     fun onBoxesMadeChanged(value: String) { _boxesMade.value = value }
     fun onPackingDateChanged(value: String) { _packingDate.value = value }
@@ -61,10 +61,6 @@ class PackingViewModel @Inject constructor(
 
     fun submit() {
         val code = _batchCode.value.trim()
-        if (code.isBlank()) {
-            _submitState.value = SubmitState.Error("Enter or scan a batch code")
-            return
-        }
         val qty = _qtyPacked.value.toDoubleOrNull()
         if (qty == null || qty <= 0) {
             _submitState.value = SubmitState.Error("Enter a valid quantity (> 0)")
@@ -102,7 +98,7 @@ class PackingViewModel @Inject constructor(
     }
 
     fun clear() {
-        _batchCode.value = ""
+        _batchCode.value = BatchCodeGenerator.generate()
         _qtyPacked.value = ""
         _boxesMade.value = ""
         _packingDate.value = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())

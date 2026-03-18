@@ -116,19 +116,6 @@ class ProductionRepository @Inject constructor(
         }
     }
 
-    // Generates a batch code via Supabase RPC — REQUIRES NETWORK
-    suspend fun generateBatchCode(skuCode: String, date: String): Result<String> =
-        withContext(Dispatchers.IO) {
-            runCatching {
-                val response = api.generateBatchCode(BatchCodeRequest(skuCode = skuCode, date = date))
-                if (response.isSuccessful) {
-                    response.body() ?: error("Empty batch code response")
-                } else {
-                    error("Batch code generation failed: ${response.code()}")
-                }
-            }
-        }
-
     // Submits a production batch — online writes directly; offline queues for sync
     // IMPORTANT: Inserts ingredients FIRST (so DB trigger fn_deduct_raw_materials can read them)
     suspend fun submitBatch(

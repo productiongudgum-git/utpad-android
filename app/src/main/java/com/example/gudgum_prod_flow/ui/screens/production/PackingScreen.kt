@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -44,15 +43,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.gudgum_prod_flow.ui.components.BarcodeScannerButton
 import com.example.gudgum_prod_flow.ui.navigation.AppRoute
 import com.example.gudgum_prod_flow.ui.theme.UtpadBackground
 import com.example.gudgum_prod_flow.ui.theme.UtpadOutline
@@ -62,7 +60,6 @@ import com.example.gudgum_prod_flow.ui.theme.UtpadTextPrimary
 import com.example.gudgum_prod_flow.ui.theme.UtpadTextSecondary
 import com.example.gudgum_prod_flow.ui.viewmodels.PackingViewModel
 import com.example.gudgum_prod_flow.ui.viewmodels.SubmitState
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -86,7 +83,6 @@ fun PackingScreen(
     val currentStep by viewModel.currentWizardStep.collectAsState()
 
     val snackbarHostState = remember { SnackbarHostState() }
-    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(submitState) {
         when (val state = submitState) {
@@ -153,7 +149,7 @@ fun PackingScreen(
                 )
 
                 when (currentStep) {
-                    // ── Step 1: Batch Code ──
+                    // ── Step 1: Batch Code (auto-generated, read-only) ──
                     1 -> {
                         Card(
                             shape = RoundedCornerShape(24.dp),
@@ -164,43 +160,47 @@ fun PackingScreen(
                                 modifier = Modifier.padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
-                                Text(
-                                    text = "BATCH CODE",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = UtpadTextSecondary,
-                                    fontWeight = FontWeight.SemiBold
-                                )
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
-                                    OutlinedTextField(
-                                        value = batchCode,
-                                        onValueChange = viewModel::onBatchCodeChanged,
-                                        placeholder = { Text("Scan or enter batch code", color = UtpadTextSecondary) },
-                                        singleLine = true,
-                                        modifier = Modifier.weight(1f),
-                                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                            focusedBorderColor = UtpadPrimary,
-                                            unfocusedBorderColor = UtpadOutline,
-                                            focusedContainerColor = UtpadBackground,
-                                            unfocusedContainerColor = UtpadSurface,
-                                        ),
-                                        shape = RoundedCornerShape(16.dp),
+                                    Text(
+                                        text = "BATCH CODE",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = UtpadTextSecondary,
+                                        fontWeight = FontWeight.SemiBold
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    BarcodeScannerButton(
-                                        prompt = "Scan packing batch barcode",
-                                        onBarcodeScanned = viewModel::onBatchCodeChanged,
-                                        onScanError = { message ->
-                                            if (message != "Scan cancelled") {
-                                                coroutineScope.launch {
-                                                    snackbarHostState.showSnackbar(message)
-                                                }
-                                            }
-                                        }
-                                    )
+                                    Surface(
+                                        shape = RoundedCornerShape(12.dp),
+                                        color = UtpadBackground,
+                                    ) {
+                                        Text(
+                                            text = "Auto-generated",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = UtpadPrimary,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                        )
+                                    }
                                 }
+                                OutlinedTextField(
+                                    value = batchCode,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    placeholder = { Text("Generated from today's date", color = UtpadTextSecondary) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.SemiBold,
+                                    ),
+                                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                        unfocusedBorderColor = UtpadOutline,
+                                        unfocusedContainerColor = UtpadSurface,
+                                    ),
+                                    shape = RoundedCornerShape(16.dp),
+                                )
                             }
                         }
                     }

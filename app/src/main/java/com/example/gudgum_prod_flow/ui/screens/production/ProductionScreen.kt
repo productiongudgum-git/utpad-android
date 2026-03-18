@@ -225,7 +225,7 @@ fun ProductionScreen(
                                 value = batchCode,
                                 onValueChange = {},
                                 readOnly = true,
-                                placeholder = { Text("Auto-generated on flavor select", color = UtpadTextSecondary) },
+                                placeholder = { Text("Generated from today's date", color = UtpadTextSecondary) },
                                 textStyle = MaterialTheme.typography.bodyLarge.copy(
                                     fontFamily = FontFamily.Monospace,
                                     fontWeight = FontWeight.SemiBold,
