@@ -19,7 +19,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
-        buildConfigField("String", "OPS_API_BASE_URL", "\"https://gudgumerp.vercel.app/api/v1/\"")
+        buildConfigField("String", "OPS_API_BASE_URL", "\"https://utpad-ops-api-seven.vercel.app/api/v1/\"")
         buildConfigField("String", "SUPABASE_URL", "\"https://zoemonbualktnxhpbebv.supabase.co/\"")
         buildConfigField("String", "SUPABASE_API_URL", "\"https://zoemonbualktnxhpbebv.supabase.co\"")
         buildConfigField("String", "SUPABASE_PROJECT_REF", "\"zoemonbualktnxhpbebv\"")
