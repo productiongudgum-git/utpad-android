@@ -4,8 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class PhoneLoginRequest(
-    val phone: String,
-    val pin: String? = null
+    val phone: String
 )
 
 @Serializable
