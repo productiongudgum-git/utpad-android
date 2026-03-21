@@ -1,5 +1,8 @@
 package com.example.gudgum_prod_flow.data.repository
 
+import android.content.Context
+import android.net.Uri
+import com.example.gudgum_prod_flow.BuildConfig
 import com.example.gudgum_prod_flow.data.local.dao.CachedIngredientDao
 import com.example.gudgum_prod_flow.data.local.dao.PendingOperationEventDao
 import com.example.gudgum_prod_flow.data.local.entity.CachedIngredientEntity
@@ -14,6 +17,9 @@ import com.example.gudgum_prod_flow.data.session.WorkerIdentityStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -122,6 +128,36 @@ class InwardingRepository @Inject constructor(
                     )
                 )
             }
+        }
+    }
+
+    /**
+     * Uploads a bill photo (local content:// or file:// URI) to Supabase Storage
+     * bucket "bill-photos" and returns the public URL on success.
+     */
+    suspend fun uploadBillPhoto(context: Context, uri: Uri): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                ?: error("Could not read photo from URI")
+
+            val filename = "inward_bill_${System.currentTimeMillis()}.jpg"
+            val uploadUrl = "${BuildConfig.SUPABASE_API_URL}/storage/v1/object/bill-photos/$filename"
+
+            val requestBody = bytes.toRequestBody("image/jpeg".toMediaType())
+            val request = Request.Builder()
+                .url(uploadUrl)
+                .header("apikey", BuildConfig.SUPABASE_ANON_KEY)
+                .header("Authorization", "Bearer ${BuildConfig.SUPABASE_ANON_KEY}")
+                .post(requestBody)
+                .build()
+
+            val response = SupabaseApiClient.httpClient.newCall(request).execute()
+            if (!response.isSuccessful) {
+                val body = response.body?.string() ?: ""
+                error("Photo upload failed: ${response.code} $body")
+            }
+
+            "${BuildConfig.SUPABASE_API_URL}/storage/v1/object/public/bill-photos/$filename"
         }
     }
 

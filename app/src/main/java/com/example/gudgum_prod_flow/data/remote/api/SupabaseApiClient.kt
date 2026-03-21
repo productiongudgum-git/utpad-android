@@ -16,7 +16,7 @@ object SupabaseApiClient {
         explicitNulls = false
     }
 
-    private val httpClient: OkHttpClient by lazy {
+    internal val httpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .addInterceptor { chain ->
                 val request = chain.request()

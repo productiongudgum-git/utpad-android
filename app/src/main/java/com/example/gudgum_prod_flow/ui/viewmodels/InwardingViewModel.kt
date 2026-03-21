@@ -1,6 +1,8 @@
 package com.example.gudgum_prod_flow.ui.viewmodels
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import android.net.Uri
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.gudgum_prod_flow.data.local.entity.CachedIngredientEntity
 import com.example.gudgum_prod_flow.data.remote.dto.GgInwardingRequest
@@ -22,10 +24,11 @@ data class Vendor(val id: String, val name: String)
 
 @HiltViewModel
 class InwardingViewModel @Inject constructor(
+    application: Application,
     private val repository: InwardingRepository,
     private val dispatchRepository: DispatchRepository,
     private val realtimeManager: com.example.gudgum_prod_flow.data.remote.SupabaseRealtimeManager,
-) : ViewModel() {
+) : AndroidViewModel(application) {
 
     private val _ingredients = MutableStateFlow<List<CachedIngredientEntity>>(emptyList())
     val ingredients: StateFlow<List<CachedIngredientEntity>> = _ingredients.asStateFlow()
@@ -76,6 +79,9 @@ class InwardingViewModel @Inject constructor(
 
     private val _submitState = MutableStateFlow<SubmitState>(SubmitState.Idle)
     val submitState: StateFlow<SubmitState> = _submitState.asStateFlow()
+
+    private val _uploadingPhoto = MutableStateFlow(false)
+    val uploadingPhoto: StateFlow<Boolean> = _uploadingPhoto.asStateFlow()
 
     private val _currentWizardStep = MutableStateFlow(1)
     val currentWizardStep: StateFlow<Int> = _currentWizardStep.asStateFlow()
@@ -257,6 +263,21 @@ class InwardingViewModel @Inject constructor(
                 _submitState.value = SubmitState.Error("Select a vendor")
                 return@launch
             }
+
+            // If the photo URI is a local content:// or file:// URI, upload it first.
+            val rawUri = _billPhotoUri.value
+            val photoUrl: String? = if (rawUri != null && !rawUri.startsWith("http")) {
+                _uploadingPhoto.value = true
+                val uploadResult = repository.uploadBillPhoto(getApplication(), Uri.parse(rawUri))
+                _uploadingPhoto.value = false
+                uploadResult.getOrElse { e ->
+                    _submitState.value = SubmitState.Error("Photo upload failed: ${e.message}")
+                    return@launch
+                }
+            } else {
+                rawUri
+            }
+
             val result = repository.submitInwardEvent(
                 request = GgInwardingRequest(
                     ingredientId = ingredient.id,
@@ -266,7 +287,7 @@ class InwardingViewModel @Inject constructor(
                     receivedDate = _inwardDate.value,
                     expiryDate = _expiryDate.value.ifBlank { null },
                     billNumber = _billNumber.value.ifBlank { null },
-                    billPhotoUrl = _billPhotoUri.value,
+                    billPhotoUrl = photoUrl,
                     recordedBy = WorkerIdentityStore.workerId,
                 ),
                 isOnline = isOnline,

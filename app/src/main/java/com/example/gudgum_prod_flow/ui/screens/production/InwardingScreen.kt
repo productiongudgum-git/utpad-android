@@ -23,6 +23,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.PhotoCamera
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -464,6 +467,12 @@ fun InwardingScreen(
                                 ),
                                 shape = RoundedCornerShape(16.dp),
                                 singleLine = true,
+                                trailingIcon = {
+                                    BarcodeScannerButton(
+                                        prompt = "Scan bill / invoice barcode",
+                                        onBarcodeScanned = { viewModel.onBillNumberChanged(it) },
+                                    )
+                                },
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
