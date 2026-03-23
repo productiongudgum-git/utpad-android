@@ -7,11 +7,6 @@ import retrofit2.http.*
 interface SupabaseApiService {
 
     // ── RPC Functions ────────────────────────────────────────────
-    @POST("rest/v1/rpc/fn_generate_batch_code")
-    suspend fun generateBatchCode(
-        @Body request: BatchCodeRequest,
-    ): Response<String>
-
     @POST("rest/v1/rpc/fn_fifo_allocate")
     suspend fun fifoAllocate(
         @Body request: FifoAllocationRequest,
