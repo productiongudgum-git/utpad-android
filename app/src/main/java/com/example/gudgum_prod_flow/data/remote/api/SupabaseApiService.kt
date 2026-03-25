@@ -65,13 +65,13 @@ interface SupabaseApiService {
     @POST("rest/v1/production_batches")
     suspend fun insertProductionBatch(
         @Body request: SubmitProductionBatchRequest,
-        @Header("Prefer") prefer: String = "return=minimal",
+        @Header("Prefer") prefer: String = "return=minimal,resolution=merge-duplicates",
     ): Response<Unit>
 
     @POST("rest/v1/production_batch_ingredients")
     suspend fun insertBatchIngredients(
         @Body request: List<SubmitBatchIngredientRequest>,
-        @Header("Prefer") prefer: String = "return=minimal",
+        @Header("Prefer") prefer: String = "return=minimal,resolution=merge-duplicates",
     ): Response<Unit>
 
     @GET("rest/v1/production_batches")
