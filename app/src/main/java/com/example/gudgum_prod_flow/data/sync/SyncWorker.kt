@@ -128,7 +128,7 @@ class SyncWorker @AssistedInject constructor(
                 GgDispatchRequest(
                     batchId = batchId,
                     customerId = payload.getString("customer_id"),
-                    quantityDispatched = payload.getDouble("quantity_dispatched"),
+                    quantityDispatched = payload.getInt("quantity_dispatched"),
                     dispatchDate = payload.getString("dispatch_date"),
                     recordedBy = workerId,
                 )

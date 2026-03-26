@@ -238,7 +238,7 @@ data class GgPackingRequest(
 data class GgDispatchRequest(
     @SerialName("batch_id") val batchId: String,
     @SerialName("customer_id") val customerId: String,
-    @SerialName("quantity_dispatched") val quantityDispatched: Double,
+    @SerialName("quantity_dispatched") val quantityDispatched: Int,
     @SerialName("dispatch_date") val dispatchDate: String,
     @SerialName("recorded_by") val recordedBy: String,
 )

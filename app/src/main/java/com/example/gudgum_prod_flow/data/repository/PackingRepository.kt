@@ -3,6 +3,7 @@ package com.example.gudgum_prod_flow.data.repository
 import com.example.gudgum_prod_flow.data.local.dao.PendingOperationEventDao
 import com.example.gudgum_prod_flow.data.local.entity.PendingOperationEventEntity
 import com.example.gudgum_prod_flow.data.remote.api.SupabaseApiClient
+import com.example.gudgum_prod_flow.data.remote.dto.GgBatchDto
 import com.example.gudgum_prod_flow.data.remote.dto.GgPackingRequest
 import com.example.gudgum_prod_flow.data.session.WorkerIdentityStore
 import kotlinx.coroutines.Dispatchers
@@ -16,6 +17,15 @@ class PackingRepository @Inject constructor(
     private val pendingDao: PendingOperationEventDao,
 ) {
     private val api = SupabaseApiClient.api
+
+    suspend fun getOpenBatchCodes(): Result<List<String>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = api.getGgBatches()
+            if (response.isSuccessful) {
+                response.body()?.map { it.batchCode } ?: emptyList()
+            } else emptyList()
+        }
+    }
 
     suspend fun submitPacking(
         batchCode: String,

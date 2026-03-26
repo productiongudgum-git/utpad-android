@@ -35,10 +35,19 @@ class DispatchRepository @Inject constructor(
         }
     }
 
+    suspend fun getOpenBatchCodes(): Result<List<String>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val response = api.getGgBatches()
+            if (response.isSuccessful) {
+                response.body()?.map { it.batchCode } ?: emptyList()
+            } else emptyList()
+        }
+    }
+
     suspend fun submitDispatch(
         batchCode: String,
         customerId: String,
-        quantityDispatched: Double,
+        quantityDispatched: Int,
         dispatchDate: String,
         workerId: String,
         isOnline: Boolean,
@@ -73,9 +82,9 @@ class DispatchRepository @Inject constructor(
                         workerName = WorkerIdentityStore.workerName,
                         workerRole = WorkerIdentityStore.workerRole,
                         batchCode = batchCode,
-                        quantity = quantityDispatched,
-                        unit = "kg",
-                        summary = "Dispatch queued — ${quantityDispatched}kg for batch $batchCode",
+                        quantity = quantityDispatched.toDouble(),
+                        unit = "units",
+                        summary = "Dispatch queued — $quantityDispatched units for batch $batchCode",
                         payloadJson = JSONObject().apply {
                             put("batch_code", batchCode)
                             put("customer_id", customerId)

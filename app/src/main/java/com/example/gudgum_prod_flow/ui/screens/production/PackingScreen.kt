@@ -2,6 +2,7 @@ package com.example.gudgum_prod_flow.ui.screens.production
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,12 +22,17 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -74,6 +80,8 @@ fun PackingScreen(
     viewModel: PackingViewModel = hiltViewModel(),
 ) {
     val batchCode by viewModel.batchCode.collectAsState()
+    val batchCodes by viewModel.batchCodes.collectAsState()
+    val batchCodesLoading by viewModel.batchCodesLoading.collectAsState()
     val qtyPacked by viewModel.qtyPacked.collectAsState()
     val boxesMade by viewModel.boxesMade.collectAsState()
     val packingDate by viewModel.packingDate.collectAsState()
@@ -149,7 +157,7 @@ fun PackingScreen(
                 )
 
                 when (currentStep) {
-                    // ── Step 1: Batch Code (auto-generated, read-only) ──
+                    // ── Step 1: Batch Code dropdown ──
                     1 -> {
                         Card(
                             shape = RoundedCornerShape(24.dp),
@@ -160,47 +168,81 @@ fun PackingScreen(
                                 modifier = Modifier.padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        text = "BATCH CODE",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = UtpadTextSecondary,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Surface(
-                                        shape = RoundedCornerShape(12.dp),
-                                        color = UtpadBackground,
+                                Text(
+                                    text = "BATCH CODE",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = UtpadTextSecondary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                if (batchCodesLoading) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
                                     ) {
-                                        Text(
-                                            text = "Auto-generated",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = UtpadPrimary,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.height(20.dp).width(20.dp),
+                                            strokeWidth = 2.dp,
+                                            color = UtpadPrimary
                                         )
+                                        Text("Loading batch codes...", color = UtpadTextSecondary, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                } else {
+                                    var batchExpanded by remember { mutableStateOf(false) }
+                                    ExposedDropdownMenuBox(
+                                        expanded = batchExpanded,
+                                        onExpandedChange = { batchExpanded = it },
+                                    ) {
+                                        OutlinedTextField(
+                                            value = batchCode,
+                                            onValueChange = {},
+                                            readOnly = true,
+                                            placeholder = { Text("Select batch code...", color = UtpadTextSecondary) },
+                                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = batchExpanded) },
+                                            singleLine = true,
+                                            textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                fontWeight = FontWeight.SemiBold,
+                                            ),
+                                            modifier = Modifier
+                                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                                                .fillMaxWidth(),
+                                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = UtpadPrimary,
+                                                unfocusedBorderColor = UtpadOutline,
+                                                unfocusedContainerColor = UtpadSurface,
+                                            ),
+                                            shape = RoundedCornerShape(16.dp),
+                                        )
+                                        ExposedDropdownMenu(
+                                            expanded = batchExpanded,
+                                            onDismissRequest = { batchExpanded = false },
+                                        ) {
+                                            if (batchCodes.isEmpty()) {
+                                                DropdownMenuItem(
+                                                    text = { Text("No batch codes found", color = UtpadTextSecondary) },
+                                                    onClick = { batchExpanded = false },
+                                                    enabled = false,
+                                                )
+                                            } else {
+                                                batchCodes.forEach { code ->
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Text(
+                                                                code,
+                                                                fontFamily = FontFamily.Monospace,
+                                                                fontWeight = FontWeight.SemiBold,
+                                                            )
+                                                        },
+                                                        onClick = {
+                                                            viewModel.onBatchCodeSelected(code)
+                                                            batchExpanded = false
+                                                        },
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
-                                OutlinedTextField(
-                                    value = batchCode,
-                                    onValueChange = {},
-                                    readOnly = true,
-                                    placeholder = { Text("Generated from today's date", color = UtpadTextSecondary) },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    textStyle = MaterialTheme.typography.bodyLarge.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        fontWeight = FontWeight.SemiBold,
-                                    ),
-                                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                        unfocusedBorderColor = UtpadOutline,
-                                        unfocusedContainerColor = UtpadSurface,
-                                    ),
-                                    shape = RoundedCornerShape(16.dp),
-                                )
                             }
                         }
                     }

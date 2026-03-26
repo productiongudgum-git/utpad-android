@@ -2,6 +2,7 @@ package com.example.gudgum_prod_flow.ui.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.gudgum_prod_flow.data.remote.api.OpsApiClient
 import com.example.gudgum_prod_flow.data.repository.PackingRepository
 import com.example.gudgum_prod_flow.data.session.WorkerIdentityStore
 import com.example.gudgum_prod_flow.util.BatchCodeGenerator
@@ -22,7 +23,14 @@ class PackingViewModel @Inject constructor(
     private val repository: PackingRepository,
 ) : ViewModel() {
 
-    private val _batchCode = MutableStateFlow(BatchCodeGenerator.generate())
+    // Batch codes fetched from gg_batches + today's code from ops API
+    private val _batchCodes = MutableStateFlow<List<String>>(emptyList())
+    val batchCodes: StateFlow<List<String>> = _batchCodes.asStateFlow()
+
+    private val _batchCodesLoading = MutableStateFlow(false)
+    val batchCodesLoading: StateFlow<Boolean> = _batchCodesLoading.asStateFlow()
+
+    private val _batchCode = MutableStateFlow("")
     val batchCode: StateFlow<String> = _batchCode.asStateFlow()
 
     private val _qtyPacked = MutableStateFlow("")
@@ -36,8 +44,6 @@ class PackingViewModel @Inject constructor(
     )
     val packingDate: StateFlow<String> = _packingDate.asStateFlow()
 
-
-
     private val _shiftSummary = MutableStateFlow(ShiftSummary("Morning", "0", "0"))
     val shiftSummary: StateFlow<ShiftSummary> = _shiftSummary.asStateFlow()
 
@@ -49,18 +55,48 @@ class PackingViewModel @Inject constructor(
 
     private var isOnline: Boolean = true
 
+    init {
+        loadBatchCodes()
+    }
+
     fun setOnlineStatus(online: Boolean) { isOnline = online }
 
+    fun loadBatchCodes() {
+        viewModelScope.launch {
+            _batchCodesLoading.value = true
+
+            // Fetch list from Supabase and today's code from ops API concurrently
+            val codesResult = repository.getOpenBatchCodes()
+            val todayCode = OpsApiClient.fetchTodayBatchCode() ?: BatchCodeGenerator.generate()
+
+            val codes = codesResult.getOrDefault(emptyList()).toMutableList()
+            // Ensure today's code appears in the list
+            if (todayCode.isNotBlank() && !codes.contains(todayCode)) {
+                codes.add(0, todayCode)
+            }
+            _batchCodes.value = codes
+
+            // Default selection = today's batch code
+            _batchCode.value = todayCode.ifBlank { codes.firstOrNull() ?: BatchCodeGenerator.generate() }
+
+            _batchCodesLoading.value = false
+        }
+    }
+
+    fun onBatchCodeSelected(code: String) { _batchCode.value = code }
     fun onQtyPackedChanged(value: String) { _qtyPacked.value = value }
     fun onBoxesMadeChanged(value: String) { _boxesMade.value = value }
     fun onPackingDateChanged(value: String) { _packingDate.value = value }
-
 
     fun nextStep() { if (_currentWizardStep.value < 3) _currentWizardStep.value++ }
     fun previousStep() { if (_currentWizardStep.value > 1) _currentWizardStep.value-- }
 
     fun submit() {
         val code = _batchCode.value.trim()
+        if (code.isBlank()) {
+            _submitState.value = SubmitState.Error("Select a batch code")
+            return
+        }
         val qty = _qtyPacked.value.toDoubleOrNull()
         if (qty == null || qty <= 0) {
             _submitState.value = SubmitState.Error("Enter a valid quantity (> 0)")
@@ -102,7 +138,6 @@ class PackingViewModel @Inject constructor(
         _qtyPacked.value = ""
         _boxesMade.value = ""
         _packingDate.value = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-
         _submitState.value = SubmitState.Idle
         _currentWizardStep.value = 1
     }

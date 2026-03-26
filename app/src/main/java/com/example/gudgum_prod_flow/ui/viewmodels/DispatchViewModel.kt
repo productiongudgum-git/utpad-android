@@ -2,6 +2,7 @@ package com.example.gudgum_prod_flow.ui.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.gudgum_prod_flow.data.remote.api.OpsApiClient
 import com.example.gudgum_prod_flow.data.remote.dto.GgCustomerDto
 import com.example.gudgum_prod_flow.data.repository.DispatchRepository
 import com.example.gudgum_prod_flow.data.session.WorkerIdentityStore
@@ -21,9 +22,17 @@ class DispatchViewModel @Inject constructor(
     private val repository: DispatchRepository,
 ) : ViewModel() {
 
-    private val _batchCode = MutableStateFlow(BatchCodeGenerator.generate())
+    // Batch codes fetched from gg_batches + today's code from ops API
+    private val _batchCodes = MutableStateFlow<List<String>>(emptyList())
+    val batchCodes: StateFlow<List<String>> = _batchCodes.asStateFlow()
+
+    private val _batchCodesLoading = MutableStateFlow(false)
+    val batchCodesLoading: StateFlow<Boolean> = _batchCodesLoading.asStateFlow()
+
+    private val _batchCode = MutableStateFlow("")
     val batchCode: StateFlow<String> = _batchCode.asStateFlow()
 
+    // Quantity in units (integer)
     private val _qtyDispatched = MutableStateFlow("")
     val qtyDispatched: StateFlow<String> = _qtyDispatched.asStateFlow()
 
@@ -53,22 +62,41 @@ class DispatchViewModel @Inject constructor(
     private var isOnline: Boolean = true
 
     init {
+        loadBatchCodes()
         loadCustomers()
     }
 
     fun setOnlineStatus(online: Boolean) { isOnline = online }
 
+    fun loadBatchCodes() {
+        viewModelScope.launch {
+            _batchCodesLoading.value = true
+
+            val codesResult = repository.getOpenBatchCodes()
+            val todayCode = OpsApiClient.fetchTodayBatchCode() ?: BatchCodeGenerator.generate()
+
+            val codes = codesResult.getOrDefault(emptyList()).toMutableList()
+            if (todayCode.isNotBlank() && !codes.contains(todayCode)) {
+                codes.add(0, todayCode)
+            }
+            _batchCodes.value = codes
+
+            _batchCode.value = todayCode.ifBlank { codes.firstOrNull() ?: BatchCodeGenerator.generate() }
+
+            _batchCodesLoading.value = false
+        }
+    }
+
     fun loadCustomers() {
         viewModelScope.launch {
             _customersLoading.value = true
             val result = repository.getCustomers()
-            result.onSuccess { list ->
-                _customers.value = list
-            }
+            result.onSuccess { list -> _customers.value = list }
             _customersLoading.value = false
         }
     }
 
+    fun onBatchCodeSelected(code: String) { _batchCode.value = code }
     fun onQtyDispatchedChanged(value: String) { _qtyDispatched.value = value }
     fun onDispatchDateChanged(value: String) { _dispatchDate.value = value }
 
@@ -82,9 +110,13 @@ class DispatchViewModel @Inject constructor(
 
     fun submit() {
         val code = _batchCode.value.trim()
-        val qty = _qtyDispatched.value.toDoubleOrNull()
+        if (code.isBlank()) {
+            _submitState.value = SubmitState.Error("Select a batch code")
+            return
+        }
+        val qty = _qtyDispatched.value.toIntOrNull()
         if (qty == null || qty <= 0) {
-            _submitState.value = SubmitState.Error("Enter a valid dispatch quantity (> 0)")
+            _submitState.value = SubmitState.Error("Enter a valid number of units (> 0)")
             return
         }
         val customerId = _selectedCustomerId.value
@@ -105,7 +137,7 @@ class DispatchViewModel @Inject constructor(
             )
             result.onSuccess {
                 _submitState.value = SubmitState.Success(
-                    if (isOnline) "Dispatched ${qty}kg for batch $code to ${_selectedCustomerName.value}"
+                    if (isOnline) "Dispatched $qty units for batch $code to ${_selectedCustomerName.value}"
                     else "Dispatch saved offline — will sync when connected"
                 )
                 reset()

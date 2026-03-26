@@ -56,7 +56,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.foundation.BorderStroke
 import com.example.gudgum_prod_flow.ui.components.SearchableDropdown
+import com.example.gudgum_prod_flow.ui.viewmodels.ProductionViewModel.Companion.BATCH_SIZE_OPTIONS
 import com.example.gudgum_prod_flow.ui.navigation.AppRoute
 import com.example.gudgum_prod_flow.ui.viewmodels.ProductionViewModel
 import com.example.gudgum_prod_flow.ui.viewmodels.SubmitState
@@ -82,6 +84,7 @@ fun ProductionScreen(
 ) {
     val selectedFlavor by viewModel.selectedFlavor.collectAsState()
     val batchCode by viewModel.batchCode.collectAsState()
+    val selectedBatchSizeUnits by viewModel.selectedBatchSizeUnits.collectAsState()
     val recipe by viewModel.recipe.collectAsState()
     val expectedYield by viewModel.expectedYield.collectAsState()
     val manufacturingDate by viewModel.manufacturingDate.collectAsState()
@@ -192,6 +195,51 @@ fun ProductionScreen(
                                 itemLabel = { it.name },
                                 placeholder = "Select Flavor...",
                             )
+                        }
+
+                        // Batch Size selector
+                        Column {
+                            Text(
+                                text = "BATCH SIZE",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = UtpadTextSecondary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                BATCH_SIZE_OPTIONS.forEach { size ->
+                                    val isSelected = selectedBatchSizeUnits == size
+                                    val label = if (size == 7500) "7,500 units" else "10,000 units"
+                                    if (isSelected) {
+                                        Button(
+                                            onClick = { viewModel.onBatchSizeSelected(size) },
+                                            modifier = Modifier.weight(1f).height(48.dp),
+                                            shape = RoundedCornerShape(16.dp),
+                                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                                containerColor = UtpadPrimary,
+                                                contentColor = androidx.compose.ui.graphics.Color.White,
+                                            ),
+                                        ) {
+                                            Text(label, fontWeight = FontWeight.Bold)
+                                        }
+                                    } else {
+                                        androidx.compose.material3.OutlinedButton(
+                                            onClick = { viewModel.onBatchSizeSelected(size) },
+                                            modifier = Modifier.weight(1f).height(48.dp),
+                                            shape = RoundedCornerShape(16.dp),
+                                            border = BorderStroke(1.dp, UtpadOutline),
+                                            colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                                                contentColor = UtpadTextPrimary,
+                                            ),
+                                        ) {
+                                            Text(label, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         // Batch Code (read-only)

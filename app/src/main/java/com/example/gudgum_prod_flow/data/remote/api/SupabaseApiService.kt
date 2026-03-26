@@ -232,6 +232,13 @@ interface SupabaseApiService {
         @Header("Prefer") prefer: String = "return=representation",
     ): Response<List<GgIngredientDto>>
 
+    @GET("rest/v1/gg_batches")
+    suspend fun getGgBatches(
+        @Query("select") select: String = "id,batch_code,status",
+        @Query("order") order: String = "created_at.desc",
+        @Query("limit") limit: Int = 30,
+    ): Response<List<GgBatchDto>>
+
     @GET("rest/v1/gg_dispatch")
     suspend fun getGgDispatchedBatches(
         @Query("select") select: String = "id,batch_id,dispatch_date,quantity_dispatched,batch:gg_batches(id,batch_code,status)",
