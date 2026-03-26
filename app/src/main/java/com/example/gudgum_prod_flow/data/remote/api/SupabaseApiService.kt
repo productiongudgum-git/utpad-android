@@ -68,10 +68,15 @@ interface SupabaseApiService {
         @Header("Prefer") prefer: String = "return=minimal,resolution=merge-duplicates",
     ): Response<Unit>
 
+    @DELETE("rest/v1/production_batch_ingredients")
+    suspend fun deleteBatchIngredients(
+        @Query("batch_code") batchCode: String, // e.g. "eq.BI0326-001"
+    ): Response<Unit>
+
     @POST("rest/v1/production_batch_ingredients")
     suspend fun insertBatchIngredients(
         @Body request: List<SubmitBatchIngredientRequest>,
-        @Header("Prefer") prefer: String = "return=minimal,resolution=merge-duplicates",
+        @Header("Prefer") prefer: String = "return=minimal",
     ): Response<Unit>
 
     @GET("rest/v1/production_batches")

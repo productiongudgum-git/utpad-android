@@ -10,6 +10,8 @@ import retrofit2.Retrofit
 
 object SupabaseApiClient {
 
+    val BASE_URL: String get() = BuildConfig.SUPABASE_URL
+
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
@@ -30,7 +32,7 @@ object SupabaseApiClient {
             }
             .addInterceptor(
                 HttpLoggingInterceptor().apply {
-                    level = HttpLoggingInterceptor.Level.BASIC
+                    level = HttpLoggingInterceptor.Level.BODY
                 }
             )
             .build()

@@ -1,5 +1,6 @@
 package com.example.gudgum_prod_flow.data.repository
 
+import android.util.Log
 import com.example.gudgum_prod_flow.data.local.dao.CachedBatchDao
 import com.example.gudgum_prod_flow.data.local.dao.CachedFlavorDao
 import com.example.gudgum_prod_flow.data.local.dao.CachedRecipeLineDao
@@ -26,6 +27,10 @@ class ProductionRepository @Inject constructor(
     private val pendingDao: PendingOperationEventDao,
 ) {
     private val api = SupabaseApiClient.api
+
+    companion object {
+        private const val TAG = "ProductionRepository"
+    }
 
     // Returns flavors from Room cache; call refreshFlavors() when online to populate
     fun getActiveFlavors(): Flow<List<CachedFlavorEntity>> = flavorDao.getActiveFlavors()
@@ -132,11 +137,51 @@ class ProductionRepository @Inject constructor(
         if (isOnline) {
             runCatching {
                 // 1. Insert ingredients first (trigger reads them)
+                val ingredientsBody = JSONArray().also { arr ->
+                    ingredients.forEach { ing ->
+                        arr.put(JSONObject().apply {
+                            put("batch_code", ing.batchCode)
+                            put("ingredient_id", ing.ingredientId)
+                            put("planned_qty", ing.plannedQty)
+                            put("actual_qty", ing.actualQty)
+                        })
+                    }
+                }.toString()
+                // Delete existing ingredients first to avoid uq_batch_ingredient conflict
+                // (Supabase merge-duplicates only works on primary key, not on secondary unique constraints)
+                Log.d(TAG, "── deleteBatchIngredients ──────────────────────────────")
+                Log.d(TAG, "URL:     DELETE ${SupabaseApiClient.BASE_URL}rest/v1/production_batch_ingredients?batch_code=eq.$batchCode")
+                val deleteResp = api.deleteBatchIngredients(batchCode = "eq.$batchCode")
+                Log.d(TAG, "Status:  ${deleteResp.code()}")
+
+                Log.d(TAG, "── insertBatchIngredients ──────────────────────────────")
+                Log.d(TAG, "URL:     POST ${SupabaseApiClient.BASE_URL}rest/v1/production_batch_ingredients")
+                Log.d(TAG, "Headers: apikey=<anon_key>, Authorization=Bearer <anon_key>, Prefer=return=minimal")
+                Log.d(TAG, "Body:    $ingredientsBody")
+
                 val ingredientsResp = api.insertBatchIngredients(ingredients)
+                val ingredientsError = ingredientsResp.errorBody()?.string()
+                Log.d(TAG, "Status:  ${ingredientsResp.code()}")
+                Log.d(TAG, "Body:    ${ingredientsError ?: "<empty — success>"}")
+
                 if (!ingredientsResp.isSuccessful && ingredientsResp.code() != 201) {
-                    error("Failed to insert batch ingredients: ${ingredientsResp.code()}")
+                    error("Failed to insert batch ingredients: ${ingredientsResp.code()} — $ingredientsError")
                 }
+
                 // 2. Insert batch row (triggers fn_deduct_raw_materials)
+                val batchBody = JSONObject().apply {
+                    put("batch_code", batchCode)
+                    put("sku_id", skuId)
+                    put("recipe_id", recipeId)
+                    put("production_date", productionDate)
+                    put("worker_id", workerId)
+                    put("planned_yield", plannedYield ?: JSONObject.NULL)
+                }.toString()
+                Log.d(TAG, "── insertProductionBatch ───────────────────────────────")
+                Log.d(TAG, "URL:     POST ${SupabaseApiClient.BASE_URL}rest/v1/production_batches")
+                Log.d(TAG, "Headers: apikey=<anon_key>, Authorization=Bearer <anon_key>, Prefer=return=minimal,resolution=merge-duplicates")
+                Log.d(TAG, "Body:    $batchBody")
+
                 val batchResp = api.insertProductionBatch(
                     SubmitProductionBatchRequest(
                         batchCode = batchCode,
@@ -147,8 +192,12 @@ class ProductionRepository @Inject constructor(
                         plannedYield = plannedYield,
                     )
                 )
+                val batchError = batchResp.errorBody()?.string()
+                Log.d(TAG, "Status:  ${batchResp.code()}")
+                Log.d(TAG, "Body:    ${batchError ?: "<empty — success>"}")
+
                 if (!batchResp.isSuccessful && batchResp.code() != 201) {
-                    error("Failed to insert production batch: ${batchResp.code()}")
+                    error("Failed to insert production batch: ${batchResp.code()} — $batchError")
                 }
             }
         } else {
