@@ -70,14 +70,16 @@ class PackingViewModel @Inject constructor(
             val todayCode = OpsApiClient.fetchTodayBatchCode() ?: BatchCodeGenerator.generate()
 
             val codes = codesResult.getOrDefault(emptyList()).toMutableList()
-            // Ensure today's code appears in the list
-            if (todayCode.isNotBlank() && !codes.contains(todayCode)) {
+            // If today's code already exists in gg_batches, move it to the top
+            if (todayCode.isNotBlank() && codes.contains(todayCode)) {
+                codes.remove(todayCode)
                 codes.add(0, todayCode)
             }
             _batchCodes.value = codes
 
-            // Default selection = today's batch code
-            _batchCode.value = todayCode.ifBlank { codes.firstOrNull() ?: BatchCodeGenerator.generate() }
+            // Default to today's code if it's in the list, otherwise fall back to first entry
+            _batchCode.value = if (codes.contains(todayCode)) todayCode
+                               else codes.firstOrNull() ?: ""
 
             _batchCodesLoading.value = false
         }
@@ -134,7 +136,7 @@ class PackingViewModel @Inject constructor(
     }
 
     fun clear() {
-        _batchCode.value = BatchCodeGenerator.generate()
+        _batchCode.value = _batchCodes.value.firstOrNull() ?: ""
         _qtyPacked.value = ""
         _boxesMade.value = ""
         _packingDate.value = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())

@@ -76,12 +76,16 @@ class DispatchViewModel @Inject constructor(
             val todayCode = OpsApiClient.fetchTodayBatchCode() ?: BatchCodeGenerator.generate()
 
             val codes = codesResult.getOrDefault(emptyList()).toMutableList()
-            if (todayCode.isNotBlank() && !codes.contains(todayCode)) {
+            // If today's code already exists in gg_batches, move it to the top
+            if (todayCode.isNotBlank() && codes.contains(todayCode)) {
+                codes.remove(todayCode)
                 codes.add(0, todayCode)
             }
             _batchCodes.value = codes
 
-            _batchCode.value = todayCode.ifBlank { codes.firstOrNull() ?: BatchCodeGenerator.generate() }
+            // Default to today's code if it's in the list, otherwise fall back to first entry
+            _batchCode.value = if (codes.contains(todayCode)) todayCode
+                               else codes.firstOrNull() ?: ""
 
             _batchCodesLoading.value = false
         }
@@ -149,7 +153,7 @@ class DispatchViewModel @Inject constructor(
     }
 
     fun reset() {
-        _batchCode.value = BatchCodeGenerator.generate()
+        _batchCode.value = _batchCodes.value.firstOrNull() ?: ""
         _qtyDispatched.value = ""
         _dispatchDate.value = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
         _selectedCustomerId.value = ""
