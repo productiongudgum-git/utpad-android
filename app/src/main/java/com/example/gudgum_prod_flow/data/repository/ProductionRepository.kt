@@ -206,11 +206,10 @@ class ProductionRepository @Inject constructor(
                 Log.d(TAG, "Headers: Prefer=return=representation,resolution=merge-duplicates")
                 val ggBatchResp = api.insertGgBatch(
                     GgBatchInsertRequest(
+                        id = java.util.UUID.randomUUID().toString(),
                         batchCode = batchCode,
                         flavorId = skuId,
                         recipeId = recipeId,
-                        plannedQtyKg = plannedYield,
-                        productionDate = productionDate,
                         createdBy = workerId,
                     )
                 )
