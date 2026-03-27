@@ -199,7 +199,7 @@ interface SupabaseApiService {
     @POST("rest/v1/gg_batches")
     suspend fun insertGgBatch(
         @Body request: GgBatchInsertRequest,
-        @Header("Prefer") prefer: String = "return=representation",
+        @Header("Prefer") prefer: String = "return=representation,resolution=merge-duplicates",
     ): Response<List<GgBatchDto>>
 
     @POST("rest/v1/gg_production")

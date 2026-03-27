@@ -286,10 +286,11 @@ data class GgVendorDto(
 data class GgBatchInsertRequest(
     @SerialName("batch_code") val batchCode: String,
     @SerialName("flavor_id") val flavorId: String,
+    @SerialName("recipe_id") val recipeId: String,
     @SerialName("planned_qty_kg") val plannedQtyKg: Double? = null,
     @SerialName("production_date") val productionDate: String,
     @SerialName("created_by") val createdBy: String,
-    val status: String = "open",
+    val status: String = "production",
 )
 
 @Serializable

@@ -199,6 +199,27 @@ class ProductionRepository @Inject constructor(
                 if (!batchResp.isSuccessful && batchResp.code() != 201) {
                     error("Failed to insert production batch: ${batchResp.code()} — $batchError")
                 }
+
+                // 3. Upsert gg_batches so Packing/Dispatch dropdowns can find this batch code
+                Log.d(TAG, "── upsertGgBatch ───────────────────────────────────────")
+                Log.d(TAG, "URL:     POST ${SupabaseApiClient.BASE_URL}rest/v1/gg_batches")
+                Log.d(TAG, "Headers: Prefer=return=representation,resolution=merge-duplicates")
+                val ggBatchResp = api.insertGgBatch(
+                    GgBatchInsertRequest(
+                        batchCode = batchCode,
+                        flavorId = skuId,
+                        recipeId = recipeId,
+                        plannedQtyKg = plannedYield,
+                        productionDate = productionDate,
+                        createdBy = workerId,
+                    )
+                )
+                val ggBatchError = ggBatchResp.errorBody()?.string()
+                Log.d(TAG, "Status:  ${ggBatchResp.code()}")
+                Log.d(TAG, "Body:    ${ggBatchError ?: "<empty — success>"}")
+                if (!ggBatchResp.isSuccessful && ggBatchResp.code() != 201) {
+                    error("Failed to upsert gg_batches: ${ggBatchResp.code()} — $ggBatchError")
+                }
             }
         } else {
             // Queue for sync
