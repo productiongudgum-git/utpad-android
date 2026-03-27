@@ -67,16 +67,16 @@ class ProductionRepository @Inject constructor(
     }
 
     // Refreshes recipe lines for a specific flavor from gg_recipes table
-    // Returns the batch_size_kg from the recipe for expected yield display
-    suspend fun refreshRecipeLines(flavorId: String): Result<Double?> = withContext(Dispatchers.IO) {
+    // Returns the recipe id and batch_size_kg from the recipe for expected yield display
+    suspend fun refreshRecipeLines(flavorId: String): Result<Pair<String?, Double?>> = withContext(Dispatchers.IO) {
         runCatching {
             val response = api.getGgRecipe(flavorId = "eq.$flavorId")
             if (response.isSuccessful) {
                 val recipes = response.body() ?: emptyList()
                 val targetRecipe = recipes.firstOrNull()
-                
+
                 recipeLineDao.deleteByRecipeId(flavorId)
-                
+
                 if (targetRecipe != null) {
                     recipeLineDao.insertAll(targetRecipe.ingredients.map { ingredient ->
                         CachedRecipeLineEntity(
@@ -88,8 +88,8 @@ class ProductionRepository @Inject constructor(
                         )
                     })
                 }
-                
-                targetRecipe?.batchSizeKg
+
+                Pair(targetRecipe?.id, targetRecipe?.batchSizeKg)
             } else {
                 error("Recipe line refresh failed: ${response.code()}")
             }

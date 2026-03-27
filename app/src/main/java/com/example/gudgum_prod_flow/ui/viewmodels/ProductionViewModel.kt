@@ -75,6 +75,9 @@ class ProductionViewModel @Inject constructor(
     // Base planned yield in kg (at BASE_BATCH_UNITS)
     private var basePlannedYieldKg: Double? = null
 
+    // The actual recipe UUID (e.g. e0000...) returned from gg_recipes, distinct from flavor/sku id
+    private var selectedRecipeId: String? = null
+
     val expectedYield: StateFlow<String> = _plannedYield
         .map { it?.let { v -> "%.1f kg".format(v) } ?: "—" }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "—")
@@ -144,7 +147,8 @@ class ProductionViewModel @Inject constructor(
         viewModelScope.launch {
             if (isOnline) {
                 val yieldResult = repository.refreshRecipeLines(recipeKey)
-                yieldResult.onSuccess { batchSizeKg ->
+                yieldResult.onSuccess { (recipeId, batchSizeKg) ->
+                    selectedRecipeId = recipeId
                     basePlannedYieldKg = batchSizeKg
                     applyBatchSizeScale()
                 }
@@ -231,7 +235,7 @@ class ProductionViewModel @Inject constructor(
                 )
             }
 
-            val recipeKey = flavor.recipeId ?: flavor.id
+            val recipeKey = selectedRecipeId ?: flavor.id
 
             val result = repository.submitBatch(
                 batchCode = batchCode,
@@ -264,6 +268,7 @@ class ProductionViewModel @Inject constructor(
         _recipe.value = emptyList()
         baseRecipeIngredients = emptyList()
         basePlannedYieldKg = null
+        selectedRecipeId = null
         _selectedBatchSizeUnits.value = BASE_BATCH_UNITS
         _plannedYield.value = null
         _actualOutput.value = ""
