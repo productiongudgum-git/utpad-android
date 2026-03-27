@@ -200,24 +200,31 @@ class ProductionRepository @Inject constructor(
                     error("Failed to insert production batch: ${batchResp.code()} — $batchError")
                 }
 
-                // 3. Upsert gg_batches so Packing/Dispatch dropdowns can find this batch code
-                Log.d(TAG, "── upsertGgBatch ───────────────────────────────────────")
-                Log.d(TAG, "URL:     POST ${SupabaseApiClient.BASE_URL}rest/v1/gg_batches")
-                Log.d(TAG, "Headers: Prefer=return=representation,resolution=merge-duplicates")
-                val ggBatchResp = api.insertGgBatch(
-                    GgBatchInsertRequest(
-                        id = java.util.UUID.randomUUID().toString(),
-                        batchCode = batchCode,
-                        flavorId = skuId,
-                        recipeId = recipeId,
-                        createdBy = workerId,
+                // 3. Insert into gg_batches only if no record exists for this batch_code
+                // (re-submitting the same day must not generate a new UUID, which would cause a FK conflict)
+                Log.d(TAG, "── checkGgBatch ────────────────────────────────────────")
+                val existingBatchResp = api.getGgBatchByCode(batchCode = "eq.$batchCode")
+                val existingBatch = if (existingBatchResp.isSuccessful) existingBatchResp.body()?.firstOrNull() else null
+                if (existingBatch != null) {
+                    Log.d(TAG, "gg_batches record already exists for $batchCode — skipping insert")
+                } else {
+                    Log.d(TAG, "── insertGgBatch ───────────────────────────────────────")
+                    Log.d(TAG, "URL:     POST ${SupabaseApiClient.BASE_URL}rest/v1/gg_batches")
+                    val ggBatchResp = api.insertGgBatch(
+                        GgBatchInsertRequest(
+                            id = java.util.UUID.randomUUID().toString(),
+                            batchCode = batchCode,
+                            flavorId = skuId,
+                            recipeId = recipeId,
+                            createdBy = workerId,
+                        )
                     )
-                )
-                val ggBatchError = ggBatchResp.errorBody()?.string()
-                Log.d(TAG, "Status:  ${ggBatchResp.code()}")
-                Log.d(TAG, "Body:    ${ggBatchError ?: "<empty — success>"}")
-                if (!ggBatchResp.isSuccessful && ggBatchResp.code() != 201) {
-                    error("Failed to upsert gg_batches: ${ggBatchResp.code()} — $ggBatchError")
+                    val ggBatchError = ggBatchResp.errorBody()?.string()
+                    Log.d(TAG, "Status:  ${ggBatchResp.code()}")
+                    Log.d(TAG, "Body:    ${ggBatchError ?: "<empty — success>"}")
+                    if (!ggBatchResp.isSuccessful && ggBatchResp.code() != 201) {
+                        error("Failed to insert gg_batches: ${ggBatchResp.code()} — $ggBatchError")
+                    }
                 }
             }
         } else {
