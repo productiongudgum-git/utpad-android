@@ -134,8 +134,8 @@ class ProductionRepository @Inject constructor(
         ingredients: List<SubmitBatchIngredientRequest>,
         isOnline: Boolean,
     ): Result<Unit> = withContext(Dispatchers.IO) {
-        if (isOnline) {
-            runCatching {
+        runCatching {
+            if (isOnline) {
                 // 1. Insert ingredients first (trigger reads them)
                 val ingredientsBody = JSONArray().also { arr ->
                     ingredients.forEach { ing ->
@@ -226,10 +226,8 @@ class ProductionRepository @Inject constructor(
                         error("Failed to insert gg_batches: ${ggBatchResp.code()} — $ggBatchError")
                     }
                 }
-            }
-        } else {
-            // Queue for sync
-            runCatching {
+            } else {
+                // Queue for sync
                 val ingredientsArray = JSONArray()
                 ingredients.forEach { ing ->
                     ingredientsArray.put(JSONObject().apply {
