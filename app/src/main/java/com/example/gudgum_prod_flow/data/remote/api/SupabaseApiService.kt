@@ -62,6 +62,14 @@ interface SupabaseApiService {
     ): Response<List<SupplierDto>>
 
     // ── Production Batches ───────────────────────────────────────
+    @GET("rest/v1/production_batches")
+    suspend fun getProductionBatchesByFlavor(
+        @Query("flavor_id") flavorId: String, // "eq.{uuid}"
+        @Query("expected_boxes") boxesFilter: String = "gt.0",
+        @Query("select") select: String = "id,batch_code,flavor_id,production_date,expected_boxes,status",
+        @Query("order") order: String = "production_date.asc",
+    ): Response<List<ProductionBatchForDispatchDto>>
+
     @POST("rest/v1/production_batches")
     suspend fun insertProductionBatch(
         @Body request: SubmitProductionBatchRequest,

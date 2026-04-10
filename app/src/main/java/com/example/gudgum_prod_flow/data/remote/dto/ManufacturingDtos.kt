@@ -189,6 +189,24 @@ data class SubmitReturnEventRequest(
     @SerialName("worker_id") val workerId: String,
 )
 
+// ── Production Batches for FIFO Dispatch ────────────────────────
+@Serializable
+data class ProductionBatchForDispatchDto(
+    val id: String,
+    @SerialName("batch_code") val batchCode: String,
+    @SerialName("flavor_id") val flavorId: String,
+    @SerialName("production_date") val productionDate: String,
+    @SerialName("expected_boxes") val expectedBoxes: Int? = null,
+    val status: String = "packed",
+)
+
+data class FifoDispatchAllocation(
+    val batchCode: String,
+    val productionDate: String,
+    val boxesToTake: Int,
+    val boxesAvailable: Int,
+)
+
 // ── Dispatched Batches (for Returns selector) ────────────────────
 @Serializable
 data class DispatchedBatchDto(

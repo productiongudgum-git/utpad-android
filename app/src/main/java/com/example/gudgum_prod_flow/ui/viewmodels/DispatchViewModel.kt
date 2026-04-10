@@ -2,11 +2,11 @@ package com.example.gudgum_prod_flow.ui.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.gudgum_prod_flow.data.remote.api.OpsApiClient
+import com.example.gudgum_prod_flow.data.remote.dto.FifoDispatchAllocation
 import com.example.gudgum_prod_flow.data.remote.dto.GgCustomerDto
+import com.example.gudgum_prod_flow.data.remote.dto.GgFlavorDto
 import com.example.gudgum_prod_flow.data.repository.DispatchRepository
 import com.example.gudgum_prod_flow.data.session.WorkerIdentityStore
-import com.example.gudgum_prod_flow.util.BatchCodeGenerator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,27 +22,15 @@ class DispatchViewModel @Inject constructor(
     private val repository: DispatchRepository,
 ) : ViewModel() {
 
-    // Batch codes fetched from gg_batches + today's code from ops API
-    private val _batchCodes = MutableStateFlow<List<String>>(emptyList())
-    val batchCodes: StateFlow<List<String>> = _batchCodes.asStateFlow()
-
-    private val _batchCodesLoading = MutableStateFlow(false)
-    val batchCodesLoading: StateFlow<Boolean> = _batchCodesLoading.asStateFlow()
-
-    private val _batchCode = MutableStateFlow("")
-    val batchCode: StateFlow<String> = _batchCode.asStateFlow()
-
-    // Quantity in units (integer)
-    private val _qtyDispatched = MutableStateFlow("")
-    val qtyDispatched: StateFlow<String> = _qtyDispatched.asStateFlow()
-
-    private val _dispatchDate = MutableStateFlow(
-        SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-    )
-    val dispatchDate: StateFlow<String> = _dispatchDate.asStateFlow()
+    // ── Step 1: Invoice + Customer ───────────────────────────────
+    private val _invoiceNumber = MutableStateFlow("")
+    val invoiceNumber: StateFlow<String> = _invoiceNumber.asStateFlow()
 
     private val _customers = MutableStateFlow<List<GgCustomerDto>>(emptyList())
     val customers: StateFlow<List<GgCustomerDto>> = _customers.asStateFlow()
+
+    private val _customersLoading = MutableStateFlow(false)
+    val customersLoading: StateFlow<Boolean> = _customersLoading.asStateFlow()
 
     private val _selectedCustomerId = MutableStateFlow("")
     val selectedCustomerId: StateFlow<String> = _selectedCustomerId.asStateFlow()
@@ -50,9 +38,39 @@ class DispatchViewModel @Inject constructor(
     private val _selectedCustomerName = MutableStateFlow("")
     val selectedCustomerName: StateFlow<String> = _selectedCustomerName.asStateFlow()
 
-    private val _customersLoading = MutableStateFlow(false)
-    val customersLoading: StateFlow<Boolean> = _customersLoading.asStateFlow()
+    // ── Step 2: Flavor ───────────────────────────────────────────
+    private val _flavors = MutableStateFlow<List<GgFlavorDto>>(emptyList())
+    val flavors: StateFlow<List<GgFlavorDto>> = _flavors.asStateFlow()
 
+    private val _flavorsLoading = MutableStateFlow(false)
+    val flavorsLoading: StateFlow<Boolean> = _flavorsLoading.asStateFlow()
+
+    private val _selectedFlavorId = MutableStateFlow("")
+    val selectedFlavorId: StateFlow<String> = _selectedFlavorId.asStateFlow()
+
+    private val _selectedFlavorName = MutableStateFlow("")
+    val selectedFlavorName: StateFlow<String> = _selectedFlavorName.asStateFlow()
+
+    // ── Step 3: Boxes + Date ─────────────────────────────────────
+    private val _boxesNeeded = MutableStateFlow("")
+    val boxesNeeded: StateFlow<String> = _boxesNeeded.asStateFlow()
+
+    private val _dispatchDate = MutableStateFlow(
+        SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+    )
+    val dispatchDate: StateFlow<String> = _dispatchDate.asStateFlow()
+
+    // ── Step 4: FIFO Allocation review ───────────────────────────
+    private val _fifoAllocations = MutableStateFlow<List<FifoDispatchAllocation>>(emptyList())
+    val fifoAllocations: StateFlow<List<FifoDispatchAllocation>> = _fifoAllocations.asStateFlow()
+
+    private val _fifoLoading = MutableStateFlow(false)
+    val fifoLoading: StateFlow<Boolean> = _fifoLoading.asStateFlow()
+
+    private val _fifoError = MutableStateFlow<String?>(null)
+    val fifoError: StateFlow<String?> = _fifoError.asStateFlow()
+
+    // ── Shared ───────────────────────────────────────────────────
     private val _submitState = MutableStateFlow<SubmitState>(SubmitState.Idle)
     val submitState: StateFlow<SubmitState> = _submitState.asStateFlow()
 
@@ -62,86 +80,122 @@ class DispatchViewModel @Inject constructor(
     private var isOnline: Boolean = true
 
     init {
-        loadBatchCodes()
+        loadFlavors()
         loadCustomers()
     }
 
     fun setOnlineStatus(online: Boolean) { isOnline = online }
 
-    fun loadBatchCodes() {
+    fun loadFlavors() {
         viewModelScope.launch {
-            _batchCodesLoading.value = true
-
-            val codesResult = repository.getOpenBatchCodes()
-            val todayCode = OpsApiClient.fetchTodayBatchCode() ?: BatchCodeGenerator.generate()
-
-            val codes = codesResult.getOrDefault(emptyList()).toMutableList()
-            // If today's code already exists in gg_batches, move it to the top
-            if (todayCode.isNotBlank() && codes.contains(todayCode)) {
-                codes.remove(todayCode)
-                codes.add(0, todayCode)
-            }
-            _batchCodes.value = codes
-
-            // Default to today's code if it's in the list, otherwise fall back to first entry
-            _batchCode.value = if (codes.contains(todayCode)) todayCode
-                               else codes.firstOrNull() ?: ""
-
-            _batchCodesLoading.value = false
+            _flavorsLoading.value = true
+            repository.getFlavors().onSuccess { _flavors.value = it }
+            _flavorsLoading.value = false
         }
     }
 
     fun loadCustomers() {
         viewModelScope.launch {
             _customersLoading.value = true
-            val result = repository.getCustomers()
-            result.onSuccess { list -> _customers.value = list }
+            repository.getCustomers().onSuccess { _customers.value = it }
             _customersLoading.value = false
         }
     }
 
-    fun onBatchCodeSelected(code: String) { _batchCode.value = code }
-    fun onQtyDispatchedChanged(value: String) { _qtyDispatched.value = value }
-    fun onDispatchDateChanged(value: String) { _dispatchDate.value = value }
+    fun onInvoiceNumberChanged(value: String) { _invoiceNumber.value = value }
 
     fun onCustomerSelected(id: String, name: String) {
         _selectedCustomerId.value = id
         _selectedCustomerName.value = name
     }
 
-    fun nextStep() { if (_currentWizardStep.value < 3) _currentWizardStep.value++ }
-    fun previousStep() { if (_currentWizardStep.value > 1) _currentWizardStep.value-- }
+    fun onFlavorSelected(id: String, name: String) {
+        _selectedFlavorId.value = id
+        _selectedFlavorName.value = name
+    }
+
+    fun onBoxesNeededChanged(value: String) { _boxesNeeded.value = value }
+    fun onDispatchDateChanged(value: String) { _dispatchDate.value = value }
+
+    fun nextStep() {
+        when (_currentWizardStep.value) {
+            1 -> {
+                if (_invoiceNumber.value.isBlank()) {
+                    _submitState.value = SubmitState.Error("Enter an invoice number")
+                    return
+                }
+                _currentWizardStep.value = 2
+            }
+            2 -> {
+                if (_selectedFlavorId.value.isBlank()) {
+                    _submitState.value = SubmitState.Error("Select a flavor")
+                    return
+                }
+                _currentWizardStep.value = 3
+            }
+            3 -> {
+                val boxes = _boxesNeeded.value.toIntOrNull()
+                if (boxes == null || boxes <= 0) {
+                    _submitState.value = SubmitState.Error("Enter a valid number of boxes (> 0)")
+                    return
+                }
+                calculateFifoAndAdvance(boxes)
+            }
+        }
+    }
+
+    private fun calculateFifoAndAdvance(boxesNeeded: Int) {
+        viewModelScope.launch {
+            _fifoLoading.value = true
+            _fifoError.value = null
+            val result = repository.getProductionBatchesByFlavor(_selectedFlavorId.value)
+            result.onSuccess { batches ->
+                val allocations = repository.allocateFifo(batches, boxesNeeded)
+                val allocated = allocations.sumOf { it.boxesToTake }
+                _fifoAllocations.value = allocations
+                if (allocated < boxesNeeded) {
+                    _fifoError.value = "Insufficient stock: only $allocated of $boxesNeeded boxes available for ${_selectedFlavorName.value}"
+                } else {
+                    _currentWizardStep.value = 4
+                }
+            }
+            result.onFailure { e ->
+                _fifoError.value = e.message ?: "Failed to load production batches"
+            }
+            _fifoLoading.value = false
+        }
+    }
+
+    fun previousStep() {
+        if (_currentWizardStep.value > 1) {
+            _currentWizardStep.value--
+            _fifoError.value = null
+        }
+    }
 
     fun submit() {
-        val code = _batchCode.value.trim()
-        if (code.isBlank()) {
-            _submitState.value = SubmitState.Error("Select a batch code")
-            return
-        }
-        val qty = _qtyDispatched.value.toIntOrNull()
-        if (qty == null || qty <= 0) {
-            _submitState.value = SubmitState.Error("Enter a valid number of units (> 0)")
-            return
-        }
-        val customerId = _selectedCustomerId.value
-        if (customerId.isBlank()) {
-            _submitState.value = SubmitState.Error("Select a customer")
+        val invoice = _invoiceNumber.value.trim()
+        val allocations = _fifoAllocations.value
+        if (allocations.isEmpty()) {
+            _submitState.value = SubmitState.Error("No FIFO allocation done")
             return
         }
 
         viewModelScope.launch {
             _submitState.value = SubmitState.Loading
             val result = repository.submitDispatch(
-                batchCode = code,
-                customerId = customerId,
-                quantityDispatched = qty,
+                allocations = allocations,
+                flavorId = _selectedFlavorId.value,
+                invoiceNumber = invoice,
+                customerName = _selectedCustomerName.value.ifBlank { null },
                 dispatchDate = _dispatchDate.value,
                 workerId = WorkerIdentityStore.workerId,
                 isOnline = isOnline,
             )
             result.onSuccess {
+                val total = allocations.sumOf { it.boxesToTake }
                 _submitState.value = SubmitState.Success(
-                    if (isOnline) "Dispatched $qty units for batch $code to ${_selectedCustomerName.value}"
+                    if (isOnline) "Dispatched $total boxes of ${_selectedFlavorName.value} (invoice $invoice)"
                     else "Dispatch saved offline — will sync when connected"
                 )
                 reset()
@@ -153,11 +207,15 @@ class DispatchViewModel @Inject constructor(
     }
 
     fun reset() {
-        _batchCode.value = _batchCodes.value.firstOrNull() ?: ""
-        _qtyDispatched.value = ""
-        _dispatchDate.value = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        _invoiceNumber.value = ""
+        _selectedFlavorId.value = ""
+        _selectedFlavorName.value = ""
         _selectedCustomerId.value = ""
         _selectedCustomerName.value = ""
+        _boxesNeeded.value = ""
+        _fifoAllocations.value = emptyList()
+        _fifoError.value = null
+        _dispatchDate.value = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
         _submitState.value = SubmitState.Idle
         _currentWizardStep.value = 1
     }

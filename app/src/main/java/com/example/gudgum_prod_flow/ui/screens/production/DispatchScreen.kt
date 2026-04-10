@@ -28,6 +28,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -55,7 +56,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.gudgum_prod_flow.ui.navigation.AppRoute
 import com.example.gudgum_prod_flow.ui.theme.UtpadBackground
@@ -81,15 +81,18 @@ fun DispatchScreen(
     onNavigateToRoute: (String) -> Unit,
     viewModel: DispatchViewModel = hiltViewModel(),
 ) {
-    val batchCode by viewModel.batchCode.collectAsState()
-    val batchCodes by viewModel.batchCodes.collectAsState()
-    val batchCodesLoading by viewModel.batchCodesLoading.collectAsState()
-    val qtyDispatched by viewModel.qtyDispatched.collectAsState()
-    val dispatchDate by viewModel.dispatchDate.collectAsState()
+    val invoiceNumber by viewModel.invoiceNumber.collectAsState()
     val customers by viewModel.customers.collectAsState()
-    val selectedCustomerId by viewModel.selectedCustomerId.collectAsState()
-    val selectedCustomerName by viewModel.selectedCustomerName.collectAsState()
     val customersLoading by viewModel.customersLoading.collectAsState()
+    val selectedCustomerName by viewModel.selectedCustomerName.collectAsState()
+    val flavors by viewModel.flavors.collectAsState()
+    val flavorsLoading by viewModel.flavorsLoading.collectAsState()
+    val selectedFlavorName by viewModel.selectedFlavorName.collectAsState()
+    val boxesNeeded by viewModel.boxesNeeded.collectAsState()
+    val dispatchDate by viewModel.dispatchDate.collectAsState()
+    val fifoAllocations by viewModel.fifoAllocations.collectAsState()
+    val fifoLoading by viewModel.fifoLoading.collectAsState()
+    val fifoError by viewModel.fifoError.collectAsState()
     val submitState by viewModel.submitState.collectAsState()
     val currentStep by viewModel.currentWizardStep.collectAsState()
 
@@ -151,16 +154,17 @@ fun DispatchScreen(
 
                 WizardProgressBar(
                     currentStep = currentStep,
-                    totalSteps = 3,
+                    totalSteps = 4,
                     stepTitle = when (currentStep) {
-                        1 -> "Batch Code"
-                        2 -> "Quantity"
-                        else -> "Customer & Date"
+                        1 -> "Invoice & Customer"
+                        2 -> "Flavor"
+                        3 -> "Boxes & Date"
+                        else -> "FIFO Allocation"
                     }
                 )
 
                 when (currentStep) {
-                    // ── Step 1: Batch Code dropdown ──
+                    // ── Step 1: Invoice number + Customer ──
                     1 -> {
                         Card(
                             shape = RoundedCornerShape(24.dp),
@@ -172,12 +176,33 @@ fun DispatchScreen(
                                 verticalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
                                 Text(
-                                    text = "BATCH CODE",
+                                    text = "INVOICE NUMBER",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = UtpadTextSecondary,
                                     fontWeight = FontWeight.SemiBold
                                 )
-                                if (batchCodesLoading) {
+                                OutlinedTextField(
+                                    value = invoiceNumber,
+                                    onValueChange = viewModel::onInvoiceNumberChanged,
+                                    placeholder = { Text("e.g. INV-2026-001", color = UtpadTextSecondary) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = UtpadPrimary,
+                                        unfocusedBorderColor = UtpadOutline,
+                                        focusedContainerColor = UtpadBackground,
+                                        unfocusedContainerColor = UtpadSurface,
+                                    ),
+                                    shape = RoundedCornerShape(16.dp),
+                                )
+
+                                Text(
+                                    text = "CUSTOMER (optional)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = UtpadTextSecondary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                if (customersLoading) {
                                     Row(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         verticalAlignment = Alignment.CenterVertically,
@@ -187,58 +212,49 @@ fun DispatchScreen(
                                             strokeWidth = 2.dp,
                                             color = UtpadPrimary
                                         )
-                                        Text("Loading batch codes...", color = UtpadTextSecondary, style = MaterialTheme.typography.bodySmall)
+                                        Text("Loading customers...", color = UtpadTextSecondary, style = MaterialTheme.typography.bodySmall)
                                     }
                                 } else {
-                                    var batchExpanded by remember { mutableStateOf(false) }
+                                    var customerExpanded by remember { mutableStateOf(false) }
                                     ExposedDropdownMenuBox(
-                                        expanded = batchExpanded,
-                                        onExpandedChange = { batchExpanded = it },
+                                        expanded = customerExpanded,
+                                        onExpandedChange = { customerExpanded = it },
                                     ) {
                                         OutlinedTextField(
-                                            value = batchCode,
+                                            value = selectedCustomerName,
                                             onValueChange = {},
                                             readOnly = true,
-                                            placeholder = { Text("Select batch code...", color = UtpadTextSecondary) },
-                                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = batchExpanded) },
-                                            singleLine = true,
-                                            textStyle = MaterialTheme.typography.bodyLarge.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                fontWeight = FontWeight.SemiBold,
-                                            ),
+                                            placeholder = { Text("Select customer...", color = UtpadTextSecondary) },
+                                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = customerExpanded) },
                                             modifier = Modifier
                                                 .menuAnchor(MenuAnchorType.PrimaryNotEditable)
                                                 .fillMaxWidth(),
+                                            singleLine = true,
                                             colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
                                                 focusedBorderColor = UtpadPrimary,
                                                 unfocusedBorderColor = UtpadOutline,
+                                                focusedContainerColor = UtpadBackground,
                                                 unfocusedContainerColor = UtpadSurface,
                                             ),
                                             shape = RoundedCornerShape(16.dp),
                                         )
                                         ExposedDropdownMenu(
-                                            expanded = batchExpanded,
-                                            onDismissRequest = { batchExpanded = false },
+                                            expanded = customerExpanded,
+                                            onDismissRequest = { customerExpanded = false },
                                         ) {
-                                            if (batchCodes.isEmpty()) {
+                                            if (customers.isEmpty()) {
                                                 DropdownMenuItem(
-                                                    text = { Text("No batch codes found", color = UtpadTextSecondary) },
-                                                    onClick = { batchExpanded = false },
+                                                    text = { Text("No customers found", color = UtpadTextSecondary) },
+                                                    onClick = { customerExpanded = false },
                                                     enabled = false,
                                                 )
                                             } else {
-                                                batchCodes.forEach { code ->
+                                                customers.forEach { customer ->
                                                     DropdownMenuItem(
-                                                        text = {
-                                                            Text(
-                                                                code,
-                                                                fontFamily = FontFamily.Monospace,
-                                                                fontWeight = FontWeight.SemiBold,
-                                                            )
-                                                        },
+                                                        text = { Text(customer.name) },
                                                         onClick = {
-                                                            viewModel.onBatchCodeSelected(code)
-                                                            batchExpanded = false
+                                                            viewModel.onCustomerSelected(customer.id, customer.name)
+                                                            customerExpanded = false
                                                         },
                                                     )
                                                 }
@@ -250,7 +266,7 @@ fun DispatchScreen(
                         }
                     }
 
-                    // ── Step 2: Units Dispatched ──
+                    // ── Step 2: Flavor dropdown ──
                     2 -> {
                         Card(
                             shape = RoundedCornerShape(24.dp),
@@ -262,16 +278,101 @@ fun DispatchScreen(
                                 verticalArrangement = Arrangement.spacedBy(14.dp),
                             ) {
                                 Text(
-                                    text = "UNITS DISPATCHED",
+                                    text = "FLAVOR",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = UtpadTextSecondary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                if (flavorsLoading) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.height(20.dp).width(20.dp),
+                                            strokeWidth = 2.dp,
+                                            color = UtpadPrimary
+                                        )
+                                        Text("Loading flavors...", color = UtpadTextSecondary, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                } else {
+                                    var flavorExpanded by remember { mutableStateOf(false) }
+                                    ExposedDropdownMenuBox(
+                                        expanded = flavorExpanded,
+                                        onExpandedChange = { flavorExpanded = it },
+                                    ) {
+                                        OutlinedTextField(
+                                            value = selectedFlavorName,
+                                            onValueChange = {},
+                                            readOnly = true,
+                                            placeholder = { Text("Select flavor...", color = UtpadTextSecondary) },
+                                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = flavorExpanded) },
+                                            modifier = Modifier
+                                                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                                                .fillMaxWidth(),
+                                            singleLine = true,
+                                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = UtpadPrimary,
+                                                unfocusedBorderColor = UtpadOutline,
+                                                unfocusedContainerColor = UtpadSurface,
+                                            ),
+                                            shape = RoundedCornerShape(16.dp),
+                                        )
+                                        ExposedDropdownMenu(
+                                            expanded = flavorExpanded,
+                                            onDismissRequest = { flavorExpanded = false },
+                                        ) {
+                                            if (flavors.isEmpty()) {
+                                                DropdownMenuItem(
+                                                    text = { Text("No flavors found", color = UtpadTextSecondary) },
+                                                    onClick = { flavorExpanded = false },
+                                                    enabled = false,
+                                                )
+                                            } else {
+                                                flavors.forEach { flavor ->
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Column {
+                                                                Text(flavor.name, fontWeight = FontWeight.SemiBold)
+                                                                Text(flavor.code, style = MaterialTheme.typography.bodySmall, color = UtpadTextSecondary)
+                                                            }
+                                                        },
+                                                        onClick = {
+                                                            viewModel.onFlavorSelected(flavor.id, flavor.name)
+                                                            flavorExpanded = false
+                                                        },
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // ── Step 3: Boxes needed + Dispatch date ──
+                    3 -> {
+                        Card(
+                            shape = RoundedCornerShape(24.dp),
+                            colors = CardDefaults.cardColors(containerColor = UtpadSurface),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(14.dp),
+                            ) {
+                                Text(
+                                    text = "BOXES NEEDED",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = UtpadTextSecondary,
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 OutlinedTextField(
-                                    value = qtyDispatched,
-                                    onValueChange = viewModel::onQtyDispatchedChanged,
+                                    value = boxesNeeded,
+                                    onValueChange = viewModel::onBoxesNeededChanged,
                                     placeholder = { Text("0", color = UtpadTextSecondary) },
-                                    suffix = { Text("units", color = UtpadTextSecondary) },
+                                    suffix = { Text("boxes", color = UtpadTextSecondary) },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth(),
@@ -283,12 +384,99 @@ fun DispatchScreen(
                                     ),
                                     shape = RoundedCornerShape(16.dp),
                                 )
+
+                                Text(
+                                    text = "DISPATCH DATE",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = UtpadTextSecondary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                var showDatePicker by remember { mutableStateOf(false) }
+                                Box(modifier = Modifier.fillMaxWidth()) {
+                                    OutlinedTextField(
+                                        value = dispatchDate,
+                                        onValueChange = {},
+                                        placeholder = { Text("Select Date", color = UtpadTextSecondary) },
+                                        singleLine = true,
+                                        readOnly = true,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                            focusedBorderColor = UtpadPrimary,
+                                            unfocusedBorderColor = UtpadOutline,
+                                            focusedContainerColor = UtpadBackground,
+                                            unfocusedContainerColor = UtpadSurface,
+                                        ),
+                                        shape = RoundedCornerShape(16.dp),
+                                    )
+                                    Surface(
+                                        modifier = Modifier.matchParentSize(),
+                                        color = androidx.compose.ui.graphics.Color.Transparent,
+                                        onClick = { showDatePicker = true }
+                                    ) {}
+                                }
+                                if (showDatePicker) {
+                                    val datePickerState = rememberDatePickerState()
+                                    DatePickerDialog(
+                                        onDismissRequest = { showDatePicker = false },
+                                        confirmButton = {
+                                            TextButton(onClick = {
+                                                val selectedMillis = datePickerState.selectedDateMillis
+                                                if (selectedMillis != null) {
+                                                    val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                                                    viewModel.onDispatchDateChanged(formatter.format(Date(selectedMillis)))
+                                                }
+                                                showDatePicker = false
+                                            }) { Text("OK", color = UtpadPrimary) }
+                                        },
+                                        dismissButton = {
+                                            TextButton(onClick = { showDatePicker = false }) {
+                                                Text("Cancel", color = UtpadTextSecondary)
+                                            }
+                                        }
+                                    ) {
+                                        DatePicker(state = datePickerState)
+                                    }
+                                }
+                            }
+                        }
+
+                        // FIFO loading/error feedback while calculating
+                        if (fifoLoading) {
+                            Card(
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = UtpadSurface),
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(16.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.height(20.dp).width(20.dp),
+                                        strokeWidth = 2.dp,
+                                        color = UtpadPrimary,
+                                    )
+                                    Text("Calculating FIFO allocation...", color = UtpadTextSecondary, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                        if (fifoError != null) {
+                            Card(
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = UtpadError.copy(alpha = 0.1f)),
+                            ) {
+                                Text(
+                                    text = fifoError!!,
+                                    modifier = Modifier.padding(16.dp),
+                                    color = UtpadError,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
                             }
                         }
                     }
 
-                    // ── Step 3: Customer & Dispatch Date ──
-                    3 -> {
+                    // ── Step 4: FIFO allocation review ──
+                    4 -> {
                         Card(
                             shape = RoundedCornerShape(24.dp),
                             colors = CardDefaults.cardColors(containerColor = UtpadSurface),
@@ -296,166 +484,107 @@ fun DispatchScreen(
                         ) {
                             Column(
                                 modifier = Modifier.padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                // Customer Dropdown
-                                Column {
-                                    Text(
-                                        text = "CUSTOMER",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = UtpadTextSecondary,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "FIFO ALLOCATION",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = UtpadTextSecondary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = "Dispatching oldest batches first (FIFO)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = UtpadTextSecondary,
+                                )
 
-                                    if (customersLoading) {
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                        ) {
-                                            CircularProgressIndicator(modifier = Modifier.height(20.dp).width(20.dp), strokeWidth = 2.dp, color = UtpadPrimary)
-                                            Text("Loading customers...", color = UtpadTextSecondary, style = MaterialTheme.typography.bodySmall)
-                                        }
-                                    } else {
-                                        var customerExpanded by remember { mutableStateOf(false) }
-                                        ExposedDropdownMenuBox(
-                                            expanded = customerExpanded,
-                                            onExpandedChange = { customerExpanded = it },
-                                        ) {
-                                            OutlinedTextField(
-                                                value = selectedCustomerName,
-                                                onValueChange = {},
-                                                readOnly = true,
-                                                placeholder = { Text("Select customer...", color = UtpadTextSecondary) },
-                                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = customerExpanded) },
-                                                modifier = Modifier
-                                                    .menuAnchor(MenuAnchorType.PrimaryNotEditable)
-                                                    .fillMaxWidth(),
-                                                singleLine = true,
-                                                colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                                    focusedBorderColor = UtpadPrimary,
-                                                    unfocusedBorderColor = UtpadOutline,
-                                                    focusedContainerColor = UtpadBackground,
-                                                    unfocusedContainerColor = UtpadSurface,
-                                                ),
-                                                shape = RoundedCornerShape(16.dp),
-                                            )
-                                            ExposedDropdownMenu(
-                                                expanded = customerExpanded,
-                                                onDismissRequest = { customerExpanded = false },
-                                            ) {
-                                                if (customers.isEmpty()) {
-                                                    DropdownMenuItem(
-                                                        text = { Text("No customers found", color = UtpadTextSecondary) },
-                                                        onClick = { customerExpanded = false },
-                                                        enabled = false,
-                                                    )
-                                                } else {
-                                                    customers.forEach { customer ->
-                                                        DropdownMenuItem(
-                                                            text = { Text(customer.name) },
-                                                            onClick = {
-                                                                viewModel.onCustomerSelected(customer.id, customer.name)
-                                                                customerExpanded = false
-                                                            },
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
+                                HorizontalDivider(color = UtpadOutline)
+
+                                // Header row
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    Text("Batch Code", style = MaterialTheme.typography.labelSmall, color = UtpadTextSecondary, modifier = Modifier.weight(2f))
+                                    Text("Date", style = MaterialTheme.typography.labelSmall, color = UtpadTextSecondary, modifier = Modifier.weight(2f))
+                                    Text("Boxes", style = MaterialTheme.typography.labelSmall, color = UtpadTextSecondary, modifier = Modifier.weight(1f))
+                                }
+
+                                HorizontalDivider(color = UtpadOutline)
+
+                                fifoAllocations.forEach { line ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            line.batchCode,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontFamily = FontFamily.Monospace,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = UtpadTextPrimary,
+                                            modifier = Modifier.weight(2f),
+                                        )
+                                        Text(
+                                            line.productionDate,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = UtpadTextSecondary,
+                                            modifier = Modifier.weight(2f),
+                                        )
+                                        Text(
+                                            "${line.boxesToTake}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = UtpadSuccess,
+                                            modifier = Modifier.weight(1f),
+                                        )
                                     }
                                 }
 
-                                // Dispatch Date
-                                Column {
+                                HorizontalDivider(color = UtpadOutline)
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
                                     Text(
-                                        text = "DISPATCH DATE",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = UtpadTextSecondary,
-                                        fontWeight = FontWeight.SemiBold
+                                        "Total",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = UtpadTextPrimary,
                                     )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    var showDatePicker by remember { mutableStateOf(false) }
-
-                                    Box(modifier = Modifier.fillMaxWidth()) {
-                                        OutlinedTextField(
-                                            value = dispatchDate,
-                                            onValueChange = {},
-                                            placeholder = { Text("Select Date", color = UtpadTextSecondary) },
-                                            singleLine = true,
-                                            readOnly = true,
-                                            modifier = Modifier.fillMaxWidth(),
-                                            colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                                                focusedBorderColor = UtpadPrimary,
-                                                unfocusedBorderColor = UtpadOutline,
-                                                focusedContainerColor = UtpadBackground,
-                                                unfocusedContainerColor = UtpadSurface,
-                                            ),
-                                            shape = RoundedCornerShape(16.dp),
-                                        )
-                                        Surface(
-                                            modifier = Modifier.matchParentSize(),
-                                            color = androidx.compose.ui.graphics.Color.Transparent,
-                                            onClick = { showDatePicker = true }
-                                        ) {}
-                                    }
-
-                                    if (showDatePicker) {
-                                        val datePickerState = rememberDatePickerState()
-                                        DatePickerDialog(
-                                            onDismissRequest = { showDatePicker = false },
-                                            confirmButton = {
-                                                TextButton(onClick = {
-                                                    val selectedMillis = datePickerState.selectedDateMillis
-                                                    if (selectedMillis != null) {
-                                                        val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                                                        viewModel.onDispatchDateChanged(formatter.format(Date(selectedMillis)))
-                                                    }
-                                                    showDatePicker = false
-                                                }) { Text("OK", color = UtpadPrimary) }
-                                            },
-                                            dismissButton = {
-                                                TextButton(onClick = { showDatePicker = false }) {
-                                                    Text("Cancel", color = UtpadTextSecondary)
-                                                }
-                                            }
-                                        ) {
-                                            DatePicker(state = datePickerState)
-                                        }
-                                    }
+                                    Text(
+                                        "${fifoAllocations.sumOf { it.boxesToTake }} boxes from ${fifoAllocations.size} batch(es)",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = UtpadPrimary,
+                                    )
                                 }
                             }
                         }
 
-                        // Review Card
+                        // Summary card
                         Card(
                             shape = RoundedCornerShape(24.dp),
                             colors = CardDefaults.cardColors(containerColor = UtpadBackground),
                             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                         ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
                                 Text(
                                     text = "DISPATCH SUMMARY",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = UtpadTextSecondary,
                                     fontWeight = FontWeight.SemiBold
                                 )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "Batch: $batchCode",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = UtpadTextPrimary,
-                                )
-                                Text(
-                                    text = "Customer: ${selectedCustomerName.ifBlank { "—" }}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = UtpadTextPrimary,
-                                )
-                                Text(
-                                    text = "Quantity: $qtyDispatched units on $dispatchDate",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = UtpadTextPrimary,
-                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("Invoice: ${invoiceNumber.ifBlank { "—" }}", style = MaterialTheme.typography.bodySmall, color = UtpadTextPrimary)
+                                Text("Flavor: $selectedFlavorName", style = MaterialTheme.typography.bodySmall, color = UtpadTextPrimary)
+                                Text("Customer: ${selectedCustomerName.ifBlank { "—" }}", style = MaterialTheme.typography.bodySmall, color = UtpadTextPrimary)
+                                Text("Date: $dispatchDate", style = MaterialTheme.typography.bodySmall, color = UtpadTextPrimary)
                             }
                         }
                     }
@@ -491,7 +620,7 @@ fun DispatchScreen(
 
                         Button(
                             onClick = {
-                                if (currentStep < 3) viewModel.nextStep() else viewModel.submit()
+                                if (currentStep < 4) viewModel.nextStep() else viewModel.submit()
                             },
                             modifier = Modifier.weight(1f).height(56.dp),
                             shape = RoundedCornerShape(20.dp),
@@ -499,12 +628,24 @@ fun DispatchScreen(
                                 containerColor = UtpadPrimary,
                                 contentColor = androidx.compose.ui.graphics.Color.White
                             ),
-                            enabled = submitState !is SubmitState.Loading,
+                            enabled = submitState !is SubmitState.Loading && !fifoLoading,
                         ) {
-                            Text(
-                                if (currentStep < 3) "Continue" else "Confirm Dispatch",
-                                fontWeight = FontWeight.Bold
-                            )
+                            if (submitState is SubmitState.Loading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.height(20.dp).width(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = androidx.compose.ui.graphics.Color.White,
+                                )
+                            } else {
+                                Text(
+                                    when (currentStep) {
+                                        4 -> "Confirm Dispatch"
+                                        3 -> "Calculate FIFO"
+                                        else -> "Continue"
+                                    },
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                     if (AppRoute.Inwarding in allowedRoutes) {

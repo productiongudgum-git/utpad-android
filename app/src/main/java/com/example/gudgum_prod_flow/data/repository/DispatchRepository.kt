@@ -4,8 +4,11 @@ import com.example.gudgum_prod_flow.data.local.dao.PendingOperationEventDao
 import com.example.gudgum_prod_flow.data.local.entity.PendingOperationEventEntity
 import com.example.gudgum_prod_flow.data.remote.api.SupabaseApiClient
 import com.example.gudgum_prod_flow.data.remote.dto.DispatchedBatchDto
+import com.example.gudgum_prod_flow.data.remote.dto.FifoDispatchAllocation
 import com.example.gudgum_prod_flow.data.remote.dto.GgCustomerDto
-import com.example.gudgum_prod_flow.data.remote.dto.GgDispatchRequest
+import com.example.gudgum_prod_flow.data.remote.dto.GgFlavorDto
+import com.example.gudgum_prod_flow.data.remote.dto.ProductionBatchForDispatchDto
+import com.example.gudgum_prod_flow.data.remote.dto.SubmitDispatchEventRequest
 import com.example.gudgum_prod_flow.data.session.WorkerIdentityStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -19,11 +22,11 @@ class DispatchRepository @Inject constructor(
 ) {
     private val api = SupabaseApiClient.api
 
-    suspend fun getDispatchedBatches(): Result<List<DispatchedBatchDto>> = withContext(Dispatchers.IO) {
+    suspend fun getFlavors(): Result<List<GgFlavorDto>> = withContext(Dispatchers.IO) {
         runCatching {
-            val response = api.getDispatchedBatches()
+            val response = api.getGgFlavors()
             if (response.isSuccessful) response.body() ?: emptyList()
-            else error("Failed to load dispatched batches: ${response.code()}")
+            else error("Failed to load flavors: ${response.code()}")
         }
     }
 
@@ -35,60 +38,94 @@ class DispatchRepository @Inject constructor(
         }
     }
 
-    suspend fun getOpenBatchCodes(): Result<List<String>> = withContext(Dispatchers.IO) {
+    suspend fun getDispatchedBatches(): Result<List<DispatchedBatchDto>> = withContext(Dispatchers.IO) {
         runCatching {
-            val response = api.getGgBatches()
-            if (response.isSuccessful) {
-                response.body()?.map { it.batchCode } ?: emptyList()
-            } else emptyList()
+            val response = api.getDispatchedBatches()
+            if (response.isSuccessful) response.body() ?: emptyList()
+            else error("Failed to load dispatched batches: ${response.code()}")
         }
     }
 
+    suspend fun getProductionBatchesByFlavor(flavorId: String): Result<List<ProductionBatchForDispatchDto>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val response = api.getProductionBatchesByFlavor(flavorId = "eq.$flavorId")
+                if (response.isSuccessful) response.body() ?: emptyList()
+                else error("Failed to load production batches: ${response.code()}")
+            }
+        }
+
+    /** Pure FIFO allocation — batches must already be sorted by production_date ASC. */
+    fun allocateFifo(
+        batches: List<ProductionBatchForDispatchDto>,
+        boxesNeeded: Int,
+    ): List<FifoDispatchAllocation> {
+        val allocations = mutableListOf<FifoDispatchAllocation>()
+        var remaining = boxesNeeded
+        for (batch in batches) {
+            if (remaining <= 0) break
+            val available = batch.expectedBoxes ?: 0
+            if (available <= 0) continue
+            val take = minOf(remaining, available)
+            allocations.add(
+                FifoDispatchAllocation(
+                    batchCode = batch.batchCode,
+                    productionDate = batch.productionDate,
+                    boxesToTake = take,
+                    boxesAvailable = available,
+                )
+            )
+            remaining -= take
+        }
+        return allocations
+    }
+
     suspend fun submitDispatch(
-        batchCode: String,
-        customerId: String,
-        quantityDispatched: Int,
+        allocations: List<FifoDispatchAllocation>,
+        flavorId: String,
+        invoiceNumber: String,
+        customerName: String?,
         dispatchDate: String,
         workerId: String,
         isOnline: Boolean,
     ): Result<Unit> = withContext(Dispatchers.IO) {
         if (isOnline) {
             runCatching {
-                // Look up batch UUID from batch_code
-                val batchResponse = api.getGgBatchByCode(batchCode = "eq.$batchCode")
-                val batches = if (batchResponse.isSuccessful) batchResponse.body() ?: emptyList() else emptyList()
-                val batchId = batches.firstOrNull()?.id
-                    ?: error("Batch '$batchCode' not found. Check the code and try again.")
-
-                val response = api.insertGgDispatch(
-                    GgDispatchRequest(
-                        batchId = batchId,
-                        customerId = customerId,
-                        quantityDispatched = quantityDispatched,
-                        dispatchDate = dispatchDate,
-                        recordedBy = workerId,
+                for (line in allocations) {
+                    val response = api.insertDispatchEvent(
+                        SubmitDispatchEventRequest(
+                            batchCode = line.batchCode,
+                            skuId = flavorId,
+                            boxesDispatched = line.boxesToTake,
+                            customerName = customerName,
+                            invoiceNumber = invoiceNumber,
+                            dispatchDate = dispatchDate,
+                            workerId = workerId,
+                        )
                     )
-                )
-                if (!response.isSuccessful && response.code() != 201) {
-                    error("Dispatch insert failed: ${response.code()}")
+                    if (!response.isSuccessful && response.code() != 201) {
+                        error("Dispatch insert failed for ${line.batchCode}: ${response.code()}")
+                    }
                 }
             }
         } else {
             runCatching {
+                val totalBoxes = allocations.sumOf { it.boxesToTake }
                 pendingDao.insertEvent(
                     PendingOperationEventEntity(
                         module = "dispatch",
                         workerId = workerId,
                         workerName = WorkerIdentityStore.workerName,
                         workerRole = WorkerIdentityStore.workerRole,
-                        batchCode = batchCode,
-                        quantity = quantityDispatched.toDouble(),
-                        unit = "units",
-                        summary = "Dispatch queued — $quantityDispatched units for batch $batchCode",
+                        batchCode = allocations.firstOrNull()?.batchCode ?: "",
+                        quantity = totalBoxes.toDouble(),
+                        unit = "boxes",
+                        summary = "Dispatch queued — $totalBoxes boxes, invoice $invoiceNumber",
                         payloadJson = JSONObject().apply {
-                            put("batch_code", batchCode)
-                            put("customer_id", customerId)
-                            put("quantity_dispatched", quantityDispatched)
+                            put("invoice_number", invoiceNumber)
+                            put("flavor_id", flavorId)
+                            put("customer_name", customerName ?: "")
+                            put("total_boxes", totalBoxes)
                             put("dispatch_date", dispatchDate)
                         }.toString(),
                     )
