@@ -43,8 +43,8 @@ class ProductionRepository @Inject constructor(
     fun getOpenBatches(): Flow<List<CachedBatchEntity>> = batchDao.getOpenBatches()
 
     // Refreshes flavor cache from Supabase gg_flavors table
-    suspend fun refreshFlavors(): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
+    suspend fun refreshFlavors(): Result<Unit> = runCatching {
+        withContext(Dispatchers.IO) {
             val response = api.getGgFlavors()
             if (response.isSuccessful) {
                 val dtos = response.body() ?: emptyList()
@@ -68,8 +68,8 @@ class ProductionRepository @Inject constructor(
 
     // Refreshes recipe lines for a specific flavor from gg_recipes table
     // Returns the recipe id and batch_size_kg from the recipe for expected yield display
-    suspend fun refreshRecipeLines(flavorId: String): Result<Pair<String?, Double?>> = withContext(Dispatchers.IO) {
-        runCatching {
+    suspend fun refreshRecipeLines(flavorId: String): Result<Pair<String?, Double?>> = runCatching {
+        withContext(Dispatchers.IO) {
             val response = api.getGgRecipe(flavorId = "eq.$flavorId")
             if (response.isSuccessful) {
                 val recipes = response.body() ?: emptyList()
@@ -97,8 +97,8 @@ class ProductionRepository @Inject constructor(
     }
 
     // Refreshes open batch cache from Supabase
-    suspend fun refreshOpenBatches(): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
+    suspend fun refreshOpenBatches(): Result<Unit> = runCatching {
+        withContext(Dispatchers.IO) {
             val response = api.getOpenBatches()
             if (response.isSuccessful) {
                 val dtos = response.body() ?: emptyList()
@@ -133,8 +133,8 @@ class ProductionRepository @Inject constructor(
         plannedYield: Double?,
         ingredients: List<SubmitBatchIngredientRequest>,
         isOnline: Boolean,
-    ): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
+    ): Result<Unit> = runCatching {
+        withContext(Dispatchers.IO) {
             if (isOnline) {
                 // 1. Insert ingredients first (trigger reads them)
                 val ingredientsBody = JSONArray().also { arr ->
